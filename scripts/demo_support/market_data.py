@@ -2,7 +2,7 @@
 
 This module is internal maintainer infrastructure. It keeps network-dependent
 market-data refreshes separate from deterministic demo construction and does
-not make yfinance a PPAR runtime dependency.
+not make yfinance a perfaud runtime dependency.
 """
 
 from __future__ import annotations

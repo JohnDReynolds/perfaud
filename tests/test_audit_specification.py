@@ -9,25 +9,25 @@ import unittest
 import yaml
 
 # Project imports
-from ppar.errors import PpaError
-from ppar.audit import AuditSpecification
-from ppar.audit.extract_contract import extract_contract_settings
+from perfaud.errors import PerfaudError
+from perfaud.specification import Specification
+from perfaud.extract_contract import extract_contract_settings
 
-_AXYS_COMPARISON_PATH = Path("tests/data/axys/validation/ppar_audit.yaml")
+_AXYS_COMPARISON_PATH = Path("tests/data/axys/validation/perfaud.yaml")
 _AXYS_SNAPSHOT_PATH = Path("tests/data/axys/snapshots")
 _TEST_AXYS_SCHEMA_PATH = Path("tests/data/axys/axys_audit_column_mappings.yaml")
 
 
 def _write_yaml(directory: Path, contents: object) -> Path:
     """Write comparison YAML contents and return the path."""
-    path = directory / "ppar_audit.yaml"
+    path = directory / "perfaud.yaml"
     path.write_text(yaml.safe_dump(contents), encoding="utf-8")
     return path
 
 
 def _write_yaml_text(directory: Path, contents: str) -> Path:
     """Write raw comparison YAML text and return the path."""
-    path = directory / "ppar_audit.yaml"
+    path = directory / "perfaud.yaml"
     path.write_text(contents, encoding="utf-8")
     return path
 
@@ -71,10 +71,10 @@ class TestAuditSpecification(unittest.TestCase):
             path = _write_yaml(directory, configuration)
 
             with self.assertRaisesRegex(
-                PpaError,
+                PerfaudError,
                 "unsupported top-level keys: holding_impact_method",
             ):
-                AuditSpecification(path)
+                Specification(path)
 
     def test_financially_material_root_settings_are_required(self) -> None:
         """Omitted comparison and tolerance choices fail closed."""
@@ -100,8 +100,8 @@ class TestAuditSpecification(unittest.TestCase):
                         del section[key_path[1]]
                     path = _write_yaml(directory, configuration)
 
-                    with self.assertRaises(PpaError) as context:
-                        AuditSpecification(path)
+                    with self.assertRaises(PerfaudError) as context:
+                        Specification(path)
 
                 self.assertIn(expected_message, str(context.exception))
 
@@ -113,7 +113,7 @@ class TestAuditSpecification(unittest.TestCase):
             del configuration["extract_contract"]
             path = _write_yaml(directory, configuration)
 
-            specification = AuditSpecification(path)
+            specification = Specification(path)
             settings = extract_contract_settings(
                 specification.values,
                 specification_path=path,
@@ -130,8 +130,8 @@ class TestAuditSpecification(unittest.TestCase):
             configuration["extract_contract"] = "unsafe"
             path = _write_yaml(directory, configuration)
 
-            with self.assertRaisesRegex(PpaError, "extract_contract must be a mapping"):
-                AuditSpecification(path)
+            with self.assertRaisesRegex(PerfaudError, "extract_contract must be a mapping"):
+                Specification(path)
 
     def test_partial_extract_contract_override_retains_safe_default(self) -> None:
         """The explicit context opt-out does not change the packaged contract."""
@@ -146,7 +146,7 @@ class TestAuditSpecification(unittest.TestCase):
     def test_retired_transaction_semantics_case_is_rejected(self) -> None:
         """The removed case-insensitive compatibility setting fails closed."""
         with self.assertRaisesRegex(
-            PpaError,
+            PerfaudError,
             "unsupported keys: transaction_semantics_case",
         ):
             extract_contract_settings(
@@ -171,10 +171,10 @@ class TestAuditSpecification(unittest.TestCase):
                     path = _write_yaml(directory, configuration)
 
                     with self.assertRaisesRegex(
-                        PpaError,
+                        PerfaudError,
                         "tolerances.return must be a finite nonnegative number",
                     ):
-                        AuditSpecification(path)
+                        Specification(path)
 
     def test_legacy_unused_tolerances_are_rejected(self) -> None:
         """Retired contribution and weight tolerances fail as unsupported."""
@@ -189,10 +189,10 @@ class TestAuditSpecification(unittest.TestCase):
                     path = _write_yaml(directory, configuration)
 
                     with self.assertRaisesRegex(
-                        PpaError,
+                        PerfaudError,
                         f"tolerances has unsupported keys: {legacy_key}",
                     ):
-                        AuditSpecification(path)
+                        Specification(path)
 
     def test_retired_security_dataset_and_filter_names_are_rejected(self) -> None:
         """The former security dataset spelling has no compatibility path."""
@@ -218,8 +218,8 @@ class TestAuditSpecification(unittest.TestCase):
                         }
                     path = _write_yaml(directory, configuration)
 
-                    with self.assertRaisesRegex(PpaError, expected_message):
-                        AuditSpecification(path)
+                    with self.assertRaisesRegex(PerfaudError, expected_message):
+                        Specification(path)
 
     def test_caller_level_allows_comparison_section_to_be_omitted(self) -> None:
         """An explicit lower-level execution choice replaces user YAML level."""
@@ -229,7 +229,7 @@ class TestAuditSpecification(unittest.TestCase):
             del configuration["comparison"]
             path = _write_yaml(directory, configuration)
 
-            specification = AuditSpecification(
+            specification = Specification(
                 path,
                 comparison_level="portfolio",
             )
@@ -250,7 +250,7 @@ class TestAuditSpecification(unittest.TestCase):
                 )
             path = _write_yaml(directory, configuration)
 
-            specification = AuditSpecification(
+            specification = Specification(
                 path,
                 comparison_level="security",
             )
@@ -261,7 +261,7 @@ class TestAuditSpecification(unittest.TestCase):
 
     def test_fixture_comparison_paths_are_resolved(self) -> None:
         """Committed baseline fixture resolves snapshots, schemas, and files."""
-        specification = AuditSpecification(_AXYS_COMPARISON_PATH)
+        specification = Specification(_AXYS_COMPARISON_PATH)
 
         self.assertEqual(specification.snapshot_a.label, "axys_a")
         self.assertEqual(specification.snapshot_b.label, "axys_b")
@@ -308,10 +308,10 @@ class TestAuditSpecification(unittest.TestCase):
             path = _write_yaml(directory, configuration)
 
             with self.assertRaisesRegex(
-                PpaError,
+                PerfaudError,
                 "inline mappings are not supported",
             ):
-                AuditSpecification(path)
+                Specification(path)
 
     def test_optional_missing_file_does_not_raise(self) -> None:
         """Missing optional files do not block specification loading."""
@@ -324,15 +324,15 @@ class TestAuditSpecification(unittest.TestCase):
             }
             path = _write_yaml(directory, configuration)
 
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
             self.assertFalse(specification.files["security_performance"].required)
             self.assertEqual(
                 specification.files["security_performance"].snapshot_a_path,
-                directory / "snapshot_a" / "missing_secperf.csv",
+                directory.resolve() / "snapshot_a" / "missing_secperf.csv",
             )
 
-    def test_required_optional_missing_file_raises_error_802(self) -> None:
+    def test_required_optional_missing_file_raises_product_error(self) -> None:
         """Optional files marked required are validated during preflight."""
         with tempfile.TemporaryDirectory() as temp_dir:
             directory = Path(temp_dir)
@@ -346,10 +346,9 @@ class TestAuditSpecification(unittest.TestCase):
             }
             path = _write_yaml(directory, configuration)
 
-            with self.assertRaises(PpaError) as context:
-                AuditSpecification(path)
+            with self.assertRaises(PerfaudError) as context:
+                Specification(path)
 
-            self.assertTrue(str(context.exception).startswith("Error 802"))
             self.assertIn("files.transactions", str(context.exception))
             self.assertIn("snapshot a", str(context.exception))
             self.assertIn("missing_transactions.csv", str(context.exception))
@@ -379,10 +378,9 @@ class TestAuditSpecification(unittest.TestCase):
             }
             path = _write_yaml(directory, configuration)
 
-            with self.assertRaises(PpaError) as context:
-                AuditSpecification(path)
+            with self.assertRaises(PerfaudError) as context:
+                Specification(path)
 
-            self.assertTrue(str(context.exception).startswith("Error 802"))
             self.assertIn("files.holdings", str(context.exception))
             self.assertIn("snapshot a", str(context.exception))
             self.assertIn("missing_holdings.csv", str(context.exception))
@@ -412,8 +410,8 @@ class TestAuditSpecification(unittest.TestCase):
             }
             path = _write_yaml(directory, configuration)
 
-            with self.assertRaisesRegex(PpaError, "required by the comparison contract"):
-                AuditSpecification(path)
+            with self.assertRaisesRegex(PerfaudError, "required by the comparison contract"):
+                Specification(path)
 
     def test_duplicate_yaml_section_key_raises(self) -> None:
         """Duplicate YAML sections fail instead of silently overriding values."""
@@ -439,8 +437,8 @@ transaction_impact_methods:
 """,
             )
 
-            with self.assertRaisesRegex(PpaError, "duplicate YAML key"):
-                AuditSpecification(path)
+            with self.assertRaisesRegex(PerfaudError, "duplicate YAML key"):
+                Specification(path)
 
     def test_duplicate_yaml_method_key_raises(self) -> None:
         """Duplicate method keys inside one semantic slot fail fast."""
@@ -464,8 +462,8 @@ transaction_impact_methods:
 """,
             )
 
-            with self.assertRaisesRegex(PpaError, "duplicate YAML key"):
-                AuditSpecification(path)
+            with self.assertRaisesRegex(PerfaudError, "duplicate YAML key"):
+                Specification(path)
 
     def test_simple_dietz_reconstruction_rejects_timed_flow_keys(self) -> None:
         """Simple Dietz does not accept timing fields it cannot use."""
@@ -485,8 +483,8 @@ transaction_impact_methods:
             }
             path = _write_yaml(directory, configuration)
 
-            with self.assertRaisesRegex(PpaError, "not valid for method simple_dietz"):
-                AuditSpecification(path)
+            with self.assertRaisesRegex(PerfaudError, "not valid for method simple_dietz"):
+                Specification(path)
 
     def test_modified_simple_dietz_reconstruction_omits_timed_flow_keys(self) -> None:
         """Modified Simple Dietz accepts only fields used by its formula."""
@@ -517,7 +515,7 @@ transaction_impact_methods:
             }
             path = _write_yaml(directory, configuration)
 
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
             reconstruction = specification.portfolio_return_reconstruction
             if reconstruction is None:
@@ -544,8 +542,8 @@ transaction_impact_methods:
             }
             path = _write_yaml(directory, configuration)
 
-            with self.assertRaisesRegex(PpaError, "required keys for method modified_dietz"):
-                AuditSpecification(path)
+            with self.assertRaisesRegex(PerfaudError, "required keys for method modified_dietz"):
+                Specification(path)
 
     def test_reconstruction_rejects_unknown_keys(self) -> None:
         """Unknown reconstruction keys fail instead of being ignored."""
@@ -565,8 +563,8 @@ transaction_impact_methods:
             }
             path = _write_yaml(directory, configuration)
 
-            with self.assertRaisesRegex(PpaError, "unsupported keys: surprise"):
-                AuditSpecification(path)
+            with self.assertRaisesRegex(PerfaudError, "unsupported keys: surprise"):
+                Specification(path)
 
     def test_portfolio_performance_cannot_configure_required_flag(self) -> None:
         """Portfolio performance requiredness is structural, not configurable."""
@@ -581,10 +579,9 @@ transaction_impact_methods:
             }
             path = _write_yaml(directory, configuration)
 
-            with self.assertRaises(PpaError) as context:
-                AuditSpecification(path)
+            with self.assertRaises(PerfaudError) as context:
+                Specification(path)
 
-            self.assertTrue(str(context.exception).startswith("Error 504"))
             self.assertIn("must not specify required", str(context.exception))
 
     def test_omitted_portfolio_performance_uses_standard_filename(self) -> None:
@@ -595,7 +592,7 @@ transaction_impact_methods:
             configuration["files"] = {"security_performance": "secperf.csv"}
             path = _write_yaml(directory, configuration)
 
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
         portfolio_file = specification.files["portfolio_performance"]
         self.assertEqual(portfolio_file.relative_path, Path("portperf.csv"))
@@ -613,11 +610,11 @@ transaction_impact_methods:
                 )
             path = _write_yaml(directory, configuration)
 
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
         self.assertNotIn("splits", specification.files)
 
-    def test_missing_snapshot_b_raises_error_504(self) -> None:
+    def test_missing_snapshot_b_raises_product_error(self) -> None:
         """Snapshot definitions must include both neutral comparison sides."""
         with tempfile.TemporaryDirectory() as temp_dir:
             directory = Path(temp_dir)
@@ -627,10 +624,9 @@ transaction_impact_methods:
             del snapshots["b"]
             path = _write_yaml(directory, configuration)
 
-            with self.assertRaises(PpaError) as context:
-                AuditSpecification(path)
+            with self.assertRaises(PerfaudError) as context:
+                Specification(path)
 
-            self.assertTrue(str(context.exception).startswith("Error 504"))
             self.assertIn("snapshots.b must be a mapping", str(context.exception))
 
     def test_retired_snapshot_vendor_key_fails_closed(self) -> None:
@@ -646,10 +642,10 @@ transaction_impact_methods:
             path = _write_yaml(directory, configuration)
 
             with self.assertRaisesRegex(
-                PpaError,
+                PerfaudError,
                 "snapshots.a has unsupported keys: vendor",
             ):
-                AuditSpecification(path)
+                Specification(path)
 
     def test_unknown_source_mapping_key_fails_closed(self) -> None:
         """Unknown top-level column mappings are not silently ignored."""
@@ -660,21 +656,20 @@ transaction_impact_methods:
             path = _write_yaml(directory, configuration)
 
             with self.assertRaisesRegex(
-                PpaError,
+                PerfaudError,
                 "YAML has unsupported top-level keys: holdings_columns",
             ):
-                AuditSpecification(path)
+                Specification(path)
 
-    def test_non_mapping_yaml_root_raises_error_504(self) -> None:
+    def test_non_mapping_yaml_root_raises_product_error(self) -> None:
         """The comparison YAML root must be a mapping."""
         with tempfile.TemporaryDirectory() as temp_dir:
             path = _write_yaml(Path(temp_dir), ["not", "a", "mapping"])
 
-            with self.assertRaises(PpaError) as context:
-                AuditSpecification(path)
+            with self.assertRaises(PerfaudError) as context:
+                Specification(path)
 
-            self.assertTrue(str(context.exception).startswith("Error 504"))
-            self.assertIn("YAML must be a dictionary", str(context.exception))
+            self.assertIn("string-keyed YAML mapping", str(context.exception))
 
     def test_valid_data_issues_configuration_is_preserved(self) -> None:
         """Strict validation retains valid current values without normalization."""
@@ -720,7 +715,7 @@ transaction_impact_methods:
             configuration["data_issues"] = data_issues
             path = _write_yaml(directory, configuration)
 
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
         self.assertEqual(specification.values["data_issues"], data_issues)
 
@@ -732,10 +727,9 @@ transaction_impact_methods:
             configuration["data_audit_checks"] = {"enabled": False}
             path = _write_yaml(directory, configuration)
 
-            with self.assertRaises(PpaError) as context:
-                AuditSpecification(path)
+            with self.assertRaises(PerfaudError) as context:
+                Specification(path)
 
-        self.assertTrue(str(context.exception).startswith("Error 504"))
         self.assertIn(
             "YAML has unsupported top-level keys: data_audit_checks",
             str(context.exception),
@@ -1127,10 +1121,9 @@ transaction_impact_methods:
                     configuration["data_issues"] = data_issues
                     path = _write_yaml(directory, configuration)
 
-                    with self.assertRaises(PpaError) as context:
-                        AuditSpecification(path)
+                    with self.assertRaises(PerfaudError) as context:
+                        Specification(path)
 
-                self.assertTrue(str(context.exception).startswith("Error 504"))
                 self.assertIn(expected_message, str(context.exception))
 
 

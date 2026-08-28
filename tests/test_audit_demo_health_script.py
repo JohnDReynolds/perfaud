@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import unittest
 from unittest.mock import patch
 
@@ -22,7 +21,6 @@ class TestAuditDemoHealthScript(unittest.TestCase):
         commands: list[tuple[str, ...]] = []
 
         with (
-            patch.object(demo_health, "_require_venv_python"),
             patch.object(
                 demo_health,
                 "_run",
@@ -49,32 +47,19 @@ class TestAuditDemoHealthScript(unittest.TestCase):
         )
         self.assertTrue(
             any(
-                "ppar.cli setup" in text
-                and "my_ppar_audit" in text
+                "perfaud.cli setup" in text
+                and "workspace" in text
                 for text in command_texts
             )
         )
         self.assertTrue(
             any(
-                "my_ppar_audit/run_audit.py" in text
+                "perfaud.cli run" in text
+                and "workspace" in text
                 for text in command_texts
             )
         )
-        self.assertFalse(any("run_analytics.py" in text for text in command_texts))
-        self.assertTrue(
-            any(
-                "validate_bundle" in text
-                and "output/portfolio" in text
-                for text in command_texts
-            )
-        )
-        self.assertTrue(
-            any(
-                "validate_bundle" in text
-                and "output/security" in text
-                for text in command_texts
-            )
-        )
+        self.assertFalse(any("run_audit.py" in text for text in command_texts))
         self.assertTrue(any("validate_demo_matrix" in text for text in command_texts))
 
     def test_skip_options_can_run_matrix_only(self) -> None:
@@ -82,7 +67,6 @@ class TestAuditDemoHealthScript(unittest.TestCase):
         commands: list[tuple[str, ...]] = []
 
         with (
-            patch.object(demo_health, "_require_venv_python"),
             patch.object(
                 demo_health,
                 "_run",
@@ -109,7 +93,6 @@ class TestAuditDemoHealthScript(unittest.TestCase):
         commands: list[tuple[str, ...]] = []
 
         with (
-            patch.object(demo_health, "_require_venv_python"),
             patch.object(
                 demo_health,
                 "_run",
@@ -131,14 +114,6 @@ class TestAuditDemoHealthScript(unittest.TestCase):
         self.assertEqual(len(commands), 1)
         self.assertIn("rebuild_audit_demo_data.py", _command_text(commands[0]))
         self.assertEqual(commands[0][-1], "--write")
-
-    def test_script_requires_project_venv_python(self) -> None:
-        """The script documents and enforces the project virtual environment."""
-        self.assertEqual(
-            demo_health._VENV_PYTHON,
-            Path.cwd() / ".venv" / "bin" / "python",
-        )
-
 
 if __name__ == "__main__":
     unittest.main()

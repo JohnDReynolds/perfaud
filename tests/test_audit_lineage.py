@@ -11,22 +11,22 @@ import unittest
 import polars as pl
 
 # Project imports
-from ppar.errors import PpaError
-from ppar.audit import conservation
-from ppar.audit import field_roles
-from ppar.audit.performance_comparison import findings as pc_findings
-from ppar.audit import lineage
-from ppar.audit import schema as pc_cols
-from ppar.audit.runner import (
+from perfaud.errors import PerfaudError
+from perfaud import conservation
+from perfaud import field_roles
+from perfaud.comparison import findings as pc_findings
+from perfaud import lineage
+from perfaud import schema as pc_cols
+from perfaud.runner import (
     compare_snapshots,
     validate_yaml_setup_complete,
 )
-from ppar.audit.workbook_tables import (
+from perfaud.workbook.tables import (
     _workbook_underlying_causes_table,
 )
 
 _COMPARISON_PATH = Path(
-    "tests/data/axys/validation/ppar_audit_restatement.yaml"
+    "tests/data/axys/validation/perfaud_restatement.yaml"
 )
 
 
@@ -95,7 +95,7 @@ class TestAuditLineage(unittest.TestCase):
             )
         )
 
-        with self.assertRaisesRegex(PpaError, "SN-05 bidirectional-lineage"):
+        with self.assertRaisesRegex(PerfaudError, "SN-05 bidirectional-lineage"):
             lineage.cause_lineage_table(stripped, findings)
 
     def test_source_cause_links_every_duplicate_finding_fingerprint(self) -> None:
@@ -154,7 +154,7 @@ class TestAuditLineage(unittest.TestCase):
 
     def test_comparison_surface_rejects_unclassified_field(self) -> None:
         """A newly compared field must receive an accounting role first."""
-        with self.assertRaisesRegex(PpaError, "SN-12 fail-closed policy"):
+        with self.assertRaisesRegex(PerfaudError, "SN-12 fail-closed policy"):
             field_roles.assert_comparison_fields_classified(
                 {pc_cols.HOLDINGS: ("new_performance_value",)}
             )
@@ -169,7 +169,7 @@ class TestAuditLineage(unittest.TestCase):
             }
         )
 
-        with self.assertRaisesRegex(PpaError, "SN-12 fail-closed policy"):
+        with self.assertRaisesRegex(PerfaudError, "SN-12 fail-closed policy"):
             validate_yaml_setup_complete(findings)
 
     def test_policy_requirement_is_derived_from_field_role(self) -> None:

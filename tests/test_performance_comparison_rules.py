@@ -8,23 +8,23 @@ import unittest
 # Third-party imports
 import polars as pl
 # Test imports
-from tests import test_utilities as test_util
+from tests import audit_helpers as test_util
 
 # Project imports
-from ppar.errors import PpaError
-from ppar.audit import compare_snapshots, summarize_findings
-from ppar.audit.performance_comparison.findings import (
+from perfaud.errors import PerfaudError
+from perfaud.runner import compare_snapshots, summarize_findings
+from perfaud.comparison.findings import (
     FINDING_CODE,
     PC_SEC_RET,
     SECURITY_ID,
     SOURCE_COLUMN,
     SUPPRESSED,
 )
-from ppar.audit import schema as pc_cols
+from perfaud import schema as pc_cols
 
 _AXYS_DATA_PATH = Path("tests/data/axys/snapshots").resolve()
 _SUPPRESSED_COMPARISON_PATH = Path(
-    "tests/data/axys/validation/ppar_audit_suppressed.yaml"
+    "tests/data/axys/validation/perfaud_suppressed.yaml"
 )
 
 
@@ -55,7 +55,7 @@ def _write_suppression_specification(
         },
         "suppressions": suppressions,
     }
-    specification_path = directory / "ppar_audit.yaml"
+    specification_path = directory / "perfaud.yaml"
     test_util.write_audit_test_yaml(specification_path, configuration)
     return specification_path
 
@@ -122,15 +122,14 @@ class TestPerformanceComparisonRules(unittest.TestCase):
 
             self.assertEqual(findings.get_column(SUPPRESSED).unique().to_list(), [False])
 
-    def test_invalid_suppression_shape_raises_error_504(self) -> None:
+    def test_invalid_suppression_shape_raises_product_error(self) -> None:
         """Suppression entries must be mappings with string codes."""
         with tempfile.TemporaryDirectory() as temp_dir:
             path = _write_suppression_specification(Path(temp_dir), [{"reason": "bad"}])
 
-            with self.assertRaises(PpaError) as context:
+            with self.assertRaises(PerfaudError) as context:
                 compare_snapshots(path)
 
-            self.assertTrue(str(context.exception).startswith("Error 504"))
             self.assertIn("suppressions[0].code", str(context.exception))
 
 

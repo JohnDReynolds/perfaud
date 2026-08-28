@@ -38,5 +38,5 @@ no-difference comparison.
 
 Related YAML demos:
 
-- `ppar_audit_multi_restatement.yaml` supplies explicit
+- `perfaud_multi_restatement.yaml` supplies explicit
   contribution and transaction policies and is the default report-bundle demo.

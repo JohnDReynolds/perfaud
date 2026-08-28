@@ -16,32 +16,12 @@ from pathlib import Path
 
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
-_VENV_PYTHON = _PROJECT_ROOT / ".venv" / "bin" / "python"
+_PYTHON = Path(sys.executable)
 
 
 def _format_command(command: Sequence[str | Path]) -> str:
     """Return a readable command line for status output."""
     return " ".join(str(part) for part in command)
-
-
-def _require_venv_python() -> None:
-    """Validate that this script is running under the project virtual environment.
-
-    Raises:
-        SystemExit: If ``./.venv/bin/python`` is missing or is not the current
-            interpreter.
-    """
-    if not _VENV_PYTHON.exists():
-        raise SystemExit(
-            "Missing .venv/bin/python. Create the project virtual environment before "
-            "running scripts/check_audit_demo_health.py."
-        )
-
-    if Path(sys.executable).resolve() != _VENV_PYTHON.resolve():
-        raise SystemExit(
-            "Run this check with the project virtual environment:\n"
-            "  ./.venv/bin/python scripts/check_audit_demo_health.py"
-        )
 
 
 def _run(command: Sequence[str | Path]) -> None:
@@ -62,44 +42,26 @@ def _run(command: Sequence[str | Path]) -> None:
 
 
 def _run_setup_generated_smoke_tests() -> None:
-    """Create a setup workspace and run its copied Python scripts.
-
-    The copied scripts are the user-visible Python examples installed by
-    ``ppar setup``. Running them here keeps the health check focused on the
-    onboarding surface instead of the older source-checkout demo modules.
-    """
-    with tempfile.TemporaryDirectory(prefix="ppar_setup_smoke_") as directory:
-        audit_directory = Path(directory) / "my_ppar_audit"
+    """Create and run the exact data-only workspace users receive."""
+    with tempfile.TemporaryDirectory(prefix="perfaud_setup_smoke_") as directory:
+        audit_directory = Path(directory) / "workspace"
 
         _run(
             [
-                _VENV_PYTHON,
+                _PYTHON,
                 "-m",
-                "ppar.cli",
+                "perfaud.cli",
                 "setup",
                 audit_directory,
             ]
         )
         _run(
             [
-                _VENV_PYTHON,
-                audit_directory / "run_audit.py",
-            ]
-        )
-        _run(
-            [
-                _VENV_PYTHON,
+                _PYTHON,
                 "-m",
-                "ppar.audit.cli.validate_bundle",
-                audit_directory / "output" / "portfolio",
-            ]
-        )
-        _run(
-            [
-                _VENV_PYTHON,
-                "-m",
-                "ppar.audit.cli.validate_bundle",
-                audit_directory / "output" / "security",
+                "perfaud.cli",
+                "run",
+                audit_directory,
             ]
         )
 
@@ -149,12 +111,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     Returns:
         Process exit code. Returns ``0`` when all selected checks pass.
     """
-    _require_venv_python()
     args = _parse_args(sys.argv[1:] if argv is None else argv)
 
     if not args.skip_rebuild_audit:
         rebuild_command: list[str | Path] = [
-            _VENV_PYTHON,
+            _PYTHON,
             "scripts/operational_demo_data/rebuild_audit_demo_data.py",
         ]
         if args.write_packaged_assets:
@@ -164,14 +125,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not args.skip_extract_availability:
         _run(
             [
-                _VENV_PYTHON,
+                _PYTHON,
                 "scripts/render_demo_extract_availability.py",
                 "--check",
             ]
         )
         _run(
             [
-                _VENV_PYTHON,
+                _PYTHON,
                 "scripts/render_transaction_semantics_matrix.py",
                 "--check",
             ]
@@ -181,7 +142,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         _run_setup_generated_smoke_tests()
 
     if not args.skip_demo_matrix:
-        _run([_VENV_PYTHON, "scripts/validate_demo_matrix.py"])
+        _run([_PYTHON, "scripts/validate_demo_matrix.py"])
 
     print("\nPackaged Audit demo health checks passed.", flush=True)
     return 0

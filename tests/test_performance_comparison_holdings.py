@@ -10,26 +10,24 @@ import polars as pl
 import yaml
 
 # Test imports
-from tests import test_utilities as test_util
+from tests import audit_helpers as test_util
 from polars.testing import assert_frame_equal
 
 # Project imports
-from ppar.errors import PpaError
-from ppar.audit import (
-    AuditSpecification,
-    HoldingsLoader,
-)
-from ppar.audit import schema as pc_cols
-from ppar.audit.base_currency import (
+from perfaud.errors import PerfaudError
+from perfaud.holdings import HoldingsLoader
+from perfaud.specification import Specification
+from perfaud import schema as pc_cols
+from perfaud.base_currency import (
     with_authoritative_base_currency,
 )
 
-_BASELINE_COMPARISON_PATH = Path("tests/data/axys/validation/ppar_audit.yaml")
+_BASELINE_COMPARISON_PATH = Path("tests/data/axys/validation/perfaud.yaml")
 
 
 def _write_yaml(directory: Path, contents: object) -> Path:
     """Write comparison YAML contents and return the path."""
-    path = directory / "ppar_audit.yaml"
+    path = directory / "perfaud.yaml"
     test_util.write_audit_test_yaml(path, contents)
     return path
 
@@ -96,7 +94,7 @@ class TestHoldingsLoader(unittest.TestCase):
 
     def test_load_baseline_snapshot_a_holdings(self) -> None:
         """Holding rows load with normalized internal columns."""
-        specification = AuditSpecification(_BASELINE_COMPARISON_PATH)
+        specification = Specification(_BASELINE_COMPARISON_PATH)
         frame = HoldingsLoader(specification).load("a")
         assert frame is not None
 
@@ -145,7 +143,7 @@ class TestHoldingsLoader(unittest.TestCase):
                 ).write_csv(snapshot_path / "holdings.csv")
             path = _write_yaml(directory, configuration)
 
-            frame = HoldingsLoader(AuditSpecification(path)).load("a")
+            frame = HoldingsLoader(Specification(path)).load("a")
 
         assert frame is not None
         self.assertEqual(frame[pc_cols.BASE_CURRENCY].to_list(), ["USD"])
@@ -214,13 +212,13 @@ class TestHoldingsLoader(unittest.TestCase):
                 ).write_csv(snapshot_path / "holdings.csv")
             path = _write_yaml(directory, configuration)
 
-            frame = HoldingsLoader(AuditSpecification(path)).load("a")
+            frame = HoldingsLoader(Specification(path)).load("a")
 
         assert frame is not None
         self.assertEqual(frame[pc_cols.ACCRUED].to_list(), [10.0])
         self.assertEqual(frame[pc_cols.BASE_ACCRUED].to_list(), [11.0])
 
-    def test_conflicting_portfolio_base_currencies_raise_error_504(self) -> None:
+    def test_conflicting_portfolio_base_currencies_raise_product_error(self) -> None:
         """One portfolio cannot declare multiple authoritative currencies."""
         with tempfile.TemporaryDirectory() as temp_dir:
             directory = Path(temp_dir)
@@ -250,11 +248,10 @@ class TestHoldingsLoader(unittest.TestCase):
                 ).write_csv(snapshot_path / "holdings.csv")
             path = _write_yaml(directory, configuration)
 
-            with self.assertRaises(PpaError) as context:
-                HoldingsLoader(AuditSpecification(path)).load("a")
+            with self.assertRaises(PerfaudError) as context:
+                HoldingsLoader(Specification(path)).load("a")
 
         message = str(context.exception)
-        self.assertTrue(message.startswith("Error 504"))
         self.assertIn("one base_currency per portfolio", message)
 
     def test_omitted_positions_returns_none(self) -> None:
@@ -262,7 +259,7 @@ class TestHoldingsLoader(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             directory = Path(temp_dir)
             path = _write_yaml(directory, _minimal_specification(directory))
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
             self.assertIsNone(HoldingsLoader(specification).load("a"))
 
@@ -276,11 +273,11 @@ class TestHoldingsLoader(unittest.TestCase):
                 "holdings": "missing_positions.csv",
             }
             path = _write_yaml(directory, configuration)
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
             self.assertIsNone(HoldingsLoader(specification).load("a"))
 
-    def test_missing_required_column_raises_error_502(self) -> None:
+    def test_missing_required_column_raises_product_error(self) -> None:
         """Existing holding files must contain portfolio, security, and date."""
         with tempfile.TemporaryDirectory() as temp_dir:
             directory = Path(temp_dir)
@@ -298,12 +295,11 @@ class TestHoldingsLoader(unittest.TestCase):
                     }
                 ).write_csv(directory / snapshot_name / "holdings.csv")
             path = _write_yaml(directory, configuration)
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
-            with self.assertRaises(PpaError) as context:
+            with self.assertRaises(PerfaudError) as context:
                 HoldingsLoader(specification).load("a")
 
-            self.assertTrue(str(context.exception).startswith("Error 502"))
             self.assertIn("holding_date", str(context.exception))
 
     def test_explicit_schema_selects_one_holding_portfolio_heading(self) -> None:
@@ -336,7 +332,7 @@ class TestHoldingsLoader(unittest.TestCase):
                 "PORTFOLIO_ID",
             )
 
-    def test_nonnumeric_market_value_raises_error_502(self) -> None:
+    def test_nonnumeric_market_value_raises_product_error(self) -> None:
         """Malformed holding numeric values fail with field-level context."""
         with tempfile.TemporaryDirectory() as temp_dir:
             directory = Path(temp_dir)
@@ -352,13 +348,12 @@ class TestHoldingsLoader(unittest.TestCase):
                     encoding="utf-8",
                 )
             path = _write_yaml(directory, configuration)
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
-            with self.assertRaises(PpaError) as context:
+            with self.assertRaises(PerfaudError) as context:
                 HoldingsLoader(specification).load("a")
 
             message = str(context.exception)
-            self.assertTrue(message.startswith("Error 502"))
             self.assertIn("holdings", message)
             self.assertIn("market_value", message)
             self.assertIn("--", message)

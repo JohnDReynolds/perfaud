@@ -11,15 +11,13 @@ import polars as pl
 import yaml
 
 # Test imports
-from tests import test_utilities as test_util
+from tests import audit_helpers as test_util
 
 # Project imports
-from ppar.errors import PpaError
-from ppar.audit import (
-    AuditSpecification,
-    TransactionsLoader,
-)
-from ppar.audit import schema as pc_cols
+from perfaud.errors import PerfaudError
+from perfaud.specification import Specification
+from perfaud.transactions import TransactionsLoader
+from perfaud import schema as pc_cols
 from scripts.transaction_policy_evidence import (
     CAPITAL_RETURN_BACKLOG_TRANSACTION_CODES,
     CAPITAL_RETURN_POSSIBLE_ROLES,
@@ -33,9 +31,9 @@ from scripts.transaction_policy_evidence import (
     fixed_income_transaction_boundary,
     transaction_backlog_gate,
 )
-from ppar.audit.config_validation import validate_config
-from ppar.audit.extract_contract import validate_extract_contract
-from ppar.audit.transactions import (
+from perfaud.config import validate_config
+from perfaud.extract_contract import validate_extract_contract
+from perfaud.transactions import (
     TRANSACTION_CASH_FLOW_SIGN_NEGATIVE,
     TRANSACTION_CASH_FLOW_SIGN_NONE,
     TRANSACTION_CASH_FLOW_SIGN_POSITIVE,
@@ -65,22 +63,22 @@ from ppar.audit.transactions import (
     transaction_impact_semantics_available,
 )
 
-_BASELINE_COMPARISON_PATH = Path("tests/data/axys/validation/ppar_audit.yaml")
+_BASELINE_COMPARISON_PATH = Path("tests/data/axys/validation/perfaud.yaml")
 _SITE_EXTRACT_CONTRACT_TEMPLATE_PATH = Path(
-    "docs/axys_apx/contracts/templates/site_extract_contract.yaml"
+    "docs/reference/axys_apx/contracts/templates/site_extract_contract.yaml"
 )
 _SITE_EXTRACT_CONTRACT_IMEX_TEMPLATE_PATH = Path(
-    "docs/axys_apx/contracts/templates/site_extract_contract_imex_context.yaml"
+    "docs/reference/axys_apx/contracts/templates/site_extract_contract_imex_context.yaml"
 )
 _SITE_EXTRACT_CONTRACT_REP_TEMPLATE_PATH = Path(
-    "docs/axys_apx/contracts/templates/site_extract_contract_rep_semantics.yaml"
+    "docs/reference/axys_apx/contracts/templates/site_extract_contract_rep_semantics.yaml"
 )
 _SITE_VARIANT_FIXTURES_PATH = Path("tests/data/axys/site_variants")
 
 
 def _write_yaml(directory: Path, contents: object) -> Path:
     """Write comparison YAML contents and return the path."""
-    path = directory / "ppar_audit.yaml"
+    path = directory / "perfaud.yaml"
     test_util.write_audit_test_yaml(path, contents)
     return path
 
@@ -275,7 +273,7 @@ class TestTransactionsLoader(unittest.TestCase):
 
     def test_load_baseline_snapshot_a_transactions(self) -> None:
         """Transaction rows load with normalized internal columns."""
-        specification = AuditSpecification(_BASELINE_COMPARISON_PATH)
+        specification = Specification(_BASELINE_COMPARISON_PATH)
         frame = TransactionsLoader(specification).load("a")
         assert frame is not None
 
@@ -328,14 +326,14 @@ class TestTransactionsLoader(unittest.TestCase):
                 ).write_csv(directory / snapshot_name / "transactions.csv")
             path = _write_yaml(directory, configuration)
 
-            frame = TransactionsLoader(AuditSpecification(path)).load("a")
+            frame = TransactionsLoader(Specification(path)).load("a")
             assert frame is not None
             row = frame.row(0, named=True)
 
         self.assertEqual(row[pc_cols.ORIGINAL_COST_DATE], dt.date(2020, 4, 3))
         self.assertEqual(row[pc_cols.ORIGINAL_COST], 0.0)
 
-    def test_conflicting_transaction_base_currency_raises_error_504(self) -> None:
+    def test_conflicting_transaction_base_currency_raises_product_error(self) -> None:
         """Transaction currency cannot contradict its portfolio currency."""
         with tempfile.TemporaryDirectory() as temp_dir:
             directory = Path(temp_dir)
@@ -374,16 +372,15 @@ class TestTransactionsLoader(unittest.TestCase):
                 ).write_csv(snapshot_path / "transactions.csv")
             path = _write_yaml(directory, configuration)
 
-            with self.assertRaises(PpaError) as context:
-                TransactionsLoader(AuditSpecification(path)).load("a")
+            with self.assertRaises(PerfaudError) as context:
+                TransactionsLoader(Specification(path)).load("a")
 
         message = str(context.exception)
-        self.assertTrue(message.startswith("Error 504"))
         self.assertIn("authoritative portfolio_performance", message)
 
     def test_transaction_category_is_resolved_by_explicit_yaml_rules(self) -> None:
         """Explicit rules label source transaction codes with reviewed categories."""
-        specification = AuditSpecification(_BASELINE_COMPARISON_PATH)
+        specification = Specification(_BASELINE_COMPARISON_PATH)
         frame = TransactionsLoader(specification).load("a")
         assert frame is not None
 
@@ -535,7 +532,7 @@ class TestTransactionsLoader(unittest.TestCase):
                     }
                 ).write_csv(directory / snapshot_name / "transactions.csv")
             path = _write_yaml(directory, configuration)
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
             frame = TransactionsLoader(specification).load("a")
             assert frame is not None
@@ -574,7 +571,7 @@ class TestTransactionsLoader(unittest.TestCase):
                     }
                 ).write_csv(directory / snapshot_name / "transactions.csv")
             path = _write_yaml(directory, configuration)
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
             frame = TransactionsLoader(specification).load("a")
             assert frame is not None
@@ -620,13 +617,12 @@ class TestTransactionsLoader(unittest.TestCase):
                     }
                 ).write_csv(directory / snapshot_name / "transactions.csv")
             path = _write_yaml(directory, configuration)
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
-            with self.assertRaises(PpaError) as context:
+            with self.assertRaises(PerfaudError) as context:
                 TransactionsLoader(specification).load("a")
 
             message = str(context.exception)
-            self.assertTrue(message.startswith("Error 504"))
             self.assertIn("unknown transaction codes or categories", message)
             self.assertIn("transaction_code=MYSTERY", message)
 
@@ -656,7 +652,7 @@ class TestTransactionsLoader(unittest.TestCase):
                     }
                 ).write_csv(directory / snapshot_name / "transactions.csv")
             path = _write_yaml(directory, configuration)
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
             frame = TransactionsLoader(specification).load("a")
             assert frame is not None
@@ -703,7 +699,7 @@ class TestTransactionsLoader(unittest.TestCase):
                     }
                 ).write_csv(directory / snapshot_name / "transactions.csv")
             path = _write_yaml(directory, configuration)
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
             frame = TransactionsLoader(specification).load("a")
             assert frame is not None
@@ -746,7 +742,7 @@ class TestTransactionsLoader(unittest.TestCase):
                     }
                 ).write_csv(directory / snapshot_name / "transactions.csv")
             path = _write_yaml(directory, configuration)
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
             frame = TransactionsLoader(specification).load("a")
             assert frame is not None
@@ -784,7 +780,7 @@ class TestTransactionsLoader(unittest.TestCase):
                     }
                 ).write_csv(directory / snapshot_name / "transactions.csv")
             path = _write_yaml(directory, configuration)
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
             frame = TransactionsLoader(specification).load("a")
             assert frame is not None
@@ -823,7 +819,7 @@ class TestTransactionsLoader(unittest.TestCase):
                     }
                 ).write_csv(directory / snapshot_name / "transactions.csv")
             path = _write_yaml(directory, configuration)
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
             frame = TransactionsLoader(specification).load("a")
             assert frame is not None
@@ -907,7 +903,7 @@ class TestTransactionsLoader(unittest.TestCase):
             for snapshot_name in ("snapshot_a", "snapshot_b"):
                 pl.DataFrame(rows).write_csv(directory / snapshot_name / "transactions.csv")
             path = _write_yaml(directory, configuration)
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
             frame = TransactionsLoader(specification).load("a")
             assert frame is not None
@@ -949,10 +945,10 @@ class TestTransactionsLoader(unittest.TestCase):
 
     def test_site_variant_imex_context_classifies_ambiguous_axys_codes(self) -> None:
         """Fixture-backed IMEX context rules classify every ambiguous Axys code."""
-        specification = AuditSpecification(
+        specification = Specification(
             _SITE_VARIANT_FIXTURES_PATH
             / "imex_context"
-            / "ppar_audit.yaml"
+            / "perfaud.yaml"
         )
 
         frame = TransactionsLoader(specification).load("a")
@@ -1074,8 +1070,8 @@ class TestTransactionsLoader(unittest.TestCase):
 
     def test_site_variant_exact_case_rules_keep_codes_distinct(self) -> None:
         """The focused site fixture proves exact code and context matching."""
-        path = _SITE_VARIANT_FIXTURES_PATH / "exact_case_rules" / "ppar_audit.yaml"
-        frame = TransactionsLoader(AuditSpecification(path)).load("a")
+        path = _SITE_VARIANT_FIXTURES_PATH / "exact_case_rules" / "perfaud.yaml"
+        frame = TransactionsLoader(Specification(path)).load("a")
         assert frame is not None
 
         rows = frame.sort(pc_cols.SECURITY_ID).to_dicts()
@@ -1096,10 +1092,10 @@ class TestTransactionsLoader(unittest.TestCase):
 
     def test_site_variant_fixed_income_accruals_use_explicit_rules(self) -> None:
         """Fixed-income accrued-interest codes stay YAML-scoped, not built-in."""
-        specification = AuditSpecification(
+        specification = Specification(
             _SITE_VARIANT_FIXTURES_PATH
             / "fixed_income_accruals"
-            / "ppar_audit.yaml"
+            / "perfaud.yaml"
         )
 
         frame = TransactionsLoader(specification).load("a")
@@ -1146,10 +1142,10 @@ class TestTransactionsLoader(unittest.TestCase):
 
     def test_site_variant_ai_margin_interest_uses_explicit_rules(self) -> None:
         """Margin-style ``ai`` rows stay YAML-scoped, not built-in."""
-        specification = AuditSpecification(
+        specification = Specification(
             _SITE_VARIANT_FIXTURES_PATH
             / "ai_margin_interest"
-            / "ppar_audit.yaml"
+            / "perfaud.yaml"
         )
 
         frame = TransactionsLoader(specification).load("a")
@@ -1190,10 +1186,10 @@ class TestTransactionsLoader(unittest.TestCase):
 
     def test_site_variant_epus_fee_context_uses_explicit_dp_rule(self) -> None:
         """The observed ``epus expense`` tokens remain contextual to ``dp``."""
-        specification = AuditSpecification(
+        specification = Specification(
             _SITE_VARIANT_FIXTURES_PATH
             / "alternate_fee_context"
-            / "ppar_audit.yaml"
+            / "perfaud.yaml"
         )
 
         frame = TransactionsLoader(specification).load("a")
@@ -1228,10 +1224,10 @@ class TestTransactionsLoader(unittest.TestCase):
 
     def test_site_variant_rc_return_of_capital_uses_explicit_rules(self) -> None:
         """Return-of-capital rows stay YAML-scoped for Modified Dietz treatment."""
-        specification = AuditSpecification(
+        specification = Specification(
             _SITE_VARIANT_FIXTURES_PATH
             / "rc_return_of_capital"
-            / "ppar_audit.yaml"
+            / "perfaud.yaml"
         )
 
         frame = TransactionsLoader(specification).load("a")
@@ -1268,10 +1264,10 @@ class TestTransactionsLoader(unittest.TestCase):
 
     def test_site_variant_pd_principal_paydown_uses_explicit_rules(self) -> None:
         """Principal-paydown rows stay YAML-scoped for Modified Dietz treatment."""
-        specification = AuditSpecification(
+        specification = Specification(
             _SITE_VARIANT_FIXTURES_PATH
             / "pd_principal_paydown"
-            / "ppar_audit.yaml"
+            / "perfaud.yaml"
         )
 
         frame = TransactionsLoader(specification).load("a")
@@ -1308,10 +1304,10 @@ class TestTransactionsLoader(unittest.TestCase):
 
     def test_site_variant_short_side_trades_use_explicit_rules(self) -> None:
         """Short-side rows stay YAML-scoped and lowercase-code specific."""
-        specification = AuditSpecification(
+        specification = Specification(
             _SITE_VARIANT_FIXTURES_PATH
             / "short_side_trades"
-            / "ppar_audit.yaml"
+            / "perfaud.yaml"
         )
 
         frame = TransactionsLoader(specification).load("a")
@@ -1358,10 +1354,10 @@ class TestTransactionsLoader(unittest.TestCase):
 
     def test_site_variant_rep_semantics_can_supply_ambiguous_flow_context(self) -> None:
         """REP/report semantics can be the reviewed context for ambiguous codes."""
-        specification = AuditSpecification(
+        specification = Specification(
             _SITE_VARIANT_FIXTURES_PATH
             / "rep_semantics"
-            / "ppar_audit.yaml"
+            / "perfaud.yaml"
         )
 
         frame = TransactionsLoader(specification).load("a")
@@ -1425,10 +1421,10 @@ class TestTransactionsLoader(unittest.TestCase):
 
     def test_site_variant_review_only_actions_stay_neutral(self) -> None:
         """Correction and synthetic corporate-action rows stay review-only."""
-        specification = AuditSpecification(
+        specification = Specification(
             _SITE_VARIANT_FIXTURES_PATH
             / "review_only_actions"
-            / "ppar_audit.yaml"
+            / "perfaud.yaml"
         )
 
         frame = TransactionsLoader(specification).load("a")
@@ -1525,7 +1521,7 @@ class TestTransactionsLoader(unittest.TestCase):
             for snapshot_name in ("snapshot_a", "snapshot_b"):
                 pl.DataFrame(rows).write_csv(directory / snapshot_name / "transactions.csv")
             path = _write_yaml(directory, configuration)
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
             frame = TransactionsLoader(specification).load("a")
             assert frame is not None
@@ -1588,13 +1584,13 @@ class TestTransactionsLoader(unittest.TestCase):
 
     def test_site_variant_code_only_imex_ambiguous_codes_fail_fast(self) -> None:
         """Code-only IMEX fixtures cannot classify ambiguous external flows."""
-        specification = AuditSpecification(
+        specification = Specification(
             _SITE_VARIANT_FIXTURES_PATH
             / "imex_code_only"
-            / "ppar_audit.yaml"
+            / "perfaud.yaml"
         )
 
-        with self.assertRaises(PpaError) as context:
+        with self.assertRaises(PerfaudError) as context:
             TransactionsLoader(specification).load("a")
 
         message = str(context.exception)
@@ -1607,10 +1603,10 @@ class TestTransactionsLoader(unittest.TestCase):
 
     def test_site_variant_local_opt_out_classifies_code_only_rows(self) -> None:
         """Reviewed local opt-out allows code-only ambiguous rows by design."""
-        specification = AuditSpecification(
+        specification = Specification(
             _SITE_VARIANT_FIXTURES_PATH
             / "local_opt_out"
-            / "ppar_audit.yaml"
+            / "perfaud.yaml"
         )
 
         frame = TransactionsLoader(specification).load("a")
@@ -1675,7 +1671,7 @@ class TestTransactionsLoader(unittest.TestCase):
             validate_config(
                 _SITE_VARIANT_FIXTURES_PATH
                 / "local_opt_out"
-                / "ppar_audit.yaml",
+                / "perfaud.yaml",
                 require_complete_yaml_setup=False,
             )["enforce_ambiguous_axys_flows"]
         )
@@ -1713,9 +1709,9 @@ class TestTransactionsLoader(unittest.TestCase):
                     }
                 ).write_csv(directory / snapshot_name / "transactions.csv")
             path = _write_yaml(directory, configuration)
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
-            with self.assertRaises(PpaError) as context:
+            with self.assertRaises(PerfaudError) as context:
                 TransactionsLoader(specification).load("a")
 
             message = str(context.exception)
@@ -1783,9 +1779,9 @@ class TestTransactionsLoader(unittest.TestCase):
             for snapshot_name in ("snapshot_a", "snapshot_b"):
                 pl.DataFrame(rows).write_csv(directory / snapshot_name / "transactions.csv")
             path = _write_yaml(directory, configuration)
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
-            with self.assertRaises(PpaError) as context:
+            with self.assertRaises(PerfaudError) as context:
                 TransactionsLoader(specification).load("a")
 
             message = str(context.exception)
@@ -1820,9 +1816,9 @@ class TestTransactionsLoader(unittest.TestCase):
                     }
                 ).write_csv(directory / snapshot_name / "transactions.csv")
             path = _write_yaml(directory, configuration)
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
-            with self.assertRaises(PpaError) as context:
+            with self.assertRaises(PerfaudError) as context:
                 TransactionsLoader(specification).load("a")
 
             message = str(context.exception)
@@ -1862,7 +1858,7 @@ class TestTransactionsLoader(unittest.TestCase):
                     }
                 ).write_csv(directory / snapshot_name / "transactions.csv")
             path = _write_yaml(directory, configuration)
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
             frame = TransactionsLoader(specification).load("a")
             assert frame is not None
@@ -1912,7 +1908,7 @@ class TestTransactionsLoader(unittest.TestCase):
                     }
                 ).write_csv(directory / snapshot_name / "transactions.csv")
             path = _write_yaml(directory, configuration)
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
             frame = TransactionsLoader(specification).load("a")
             assert frame is not None
@@ -1972,7 +1968,7 @@ class TestTransactionsLoader(unittest.TestCase):
                     directory / snapshot_name / "transactions.csv"
                 )
             path = _write_yaml(directory, configuration)
-            frame = TransactionsLoader(AuditSpecification(path)).load("a")
+            frame = TransactionsLoader(Specification(path)).load("a")
             assert frame is not None
 
             rows = frame.sort(pc_cols.SECURITY_ID).to_dicts()
@@ -2025,8 +2021,8 @@ class TestTransactionsLoader(unittest.TestCase):
                 ).write_csv(directory / snapshot_name / "transactions.csv")
             path = _write_yaml(directory, configuration)
 
-            with self.assertRaises(PpaError) as context:
-                TransactionsLoader(AuditSpecification(path)).load("a")
+            with self.assertRaises(PerfaudError) as context:
+                TransactionsLoader(Specification(path)).load("a")
 
             message = str(context.exception)
             self.assertIn("unknown transaction codes or categories", message)
@@ -2067,10 +2063,10 @@ class TestTransactionsLoader(unittest.TestCase):
             path = _write_yaml(directory, configuration)
 
             with self.assertRaisesRegex(
-                PpaError,
+                PerfaudError,
                 "transaction_security_type=CSUS",
             ):
-                TransactionsLoader(AuditSpecification(path)).load("a")
+                TransactionsLoader(Specification(path)).load("a")
 
     def test_exact_case_requires_versioned_extract_contract(self) -> None:
         """Exact transaction semantics fail closed for an unversioned contract."""
@@ -2085,7 +2081,7 @@ class TestTransactionsLoader(unittest.TestCase):
             path = _write_yaml(directory, configuration)
 
             with self.assertRaisesRegex(
-                PpaError,
+                PerfaudError,
                 "transaction semantics require a positive integer contract version",
             ):
                 validate_config(path, require_complete_yaml_setup=False)
@@ -2102,7 +2098,7 @@ class TestTransactionsLoader(unittest.TestCase):
             path = _write_yaml(directory, configuration)
 
             with self.assertRaisesRegex(
-                PpaError,
+                PerfaudError,
                 "unsupported keys: transaction_semantics_case",
             ):
                 validate_config(path, require_complete_yaml_setup=False)
@@ -2119,7 +2115,7 @@ class TestTransactionsLoader(unittest.TestCase):
             }
             path = _write_yaml(directory, configuration)
 
-            with self.assertRaises(PpaError) as context:
+            with self.assertRaises(PerfaudError) as context:
                 validate_config(path)
 
             self.assertIn("transactions.csv must be a mapping", str(context.exception))
@@ -2140,7 +2136,7 @@ class TestTransactionsLoader(unittest.TestCase):
             }
             path = _write_yaml(directory, configuration)
 
-            with self.assertRaises(PpaError) as context:
+            with self.assertRaises(PerfaudError) as context:
                 validate_config(path)
 
             self.assertIn(
@@ -2174,7 +2170,7 @@ class TestTransactionsLoader(unittest.TestCase):
             }
             path = _write_yaml(directory, configuration)
 
-            with self.assertRaises(PpaError) as context:
+            with self.assertRaises(PerfaudError) as context:
                 validate_config(path)
 
             self.assertIn(
@@ -2211,7 +2207,7 @@ class TestTransactionsLoader(unittest.TestCase):
                     }
                 ).write_csv(directory / snapshot_name / "transactions.csv")
             path = _write_yaml(directory, configuration)
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
             frame = TransactionsLoader(specification).load("a")
             assert frame is not None
@@ -2241,9 +2237,9 @@ class TestTransactionsLoader(unittest.TestCase):
                     }
                 ).write_csv(directory / snapshot_name / "transactions.csv")
             path = _write_yaml(directory, configuration)
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
-            with self.assertRaises(PpaError) as context:
+            with self.assertRaises(PerfaudError) as context:
                 TransactionsLoader(specification).load("a")
 
             self.assertIn("transaction_rules must be a mapping", str(context.exception))
@@ -2277,15 +2273,15 @@ class TestTransactionsLoader(unittest.TestCase):
                 ).write_csv(directory / snapshot_name / "transactions.csv")
             path = _write_yaml(directory, configuration)
 
-            with self.assertRaisesRegex(PpaError, "unsupported key 'security_type'"):
-                TransactionsLoader(AuditSpecification(path)).load("a")
+            with self.assertRaisesRegex(PerfaudError, "unsupported key 'security_type'"):
+                TransactionsLoader(Specification(path)).load("a")
 
     def test_omitted_transactions_returns_none(self) -> None:
         """Transactions are optional when omitted from YAML."""
         with tempfile.TemporaryDirectory() as temp_dir:
             directory = Path(temp_dir)
             path = _write_yaml(directory, _minimal_specification(directory))
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
             self.assertIsNone(TransactionsLoader(specification).load("a"))
 
@@ -2299,11 +2295,11 @@ class TestTransactionsLoader(unittest.TestCase):
                 "transactions": "missing_transactions.csv",
             }
             path = _write_yaml(directory, configuration)
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
             self.assertIsNone(TransactionsLoader(specification).load("a"))
 
-    def test_missing_required_column_raises_error_502(self) -> None:
+    def test_missing_required_column_raises_product_error(self) -> None:
         """Existing transaction files must contain portfolio, security, and date."""
         with tempfile.TemporaryDirectory() as temp_dir:
             directory = Path(temp_dir)
@@ -2321,12 +2317,11 @@ class TestTransactionsLoader(unittest.TestCase):
                     }
                 ).write_csv(directory / snapshot_name / "transactions.csv")
             path = _write_yaml(directory, configuration)
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
-            with self.assertRaises(PpaError) as context:
+            with self.assertRaises(PerfaudError) as context:
                 TransactionsLoader(specification).load("a")
 
-            self.assertTrue(str(context.exception).startswith("Error 502"))
             self.assertIn("transaction_date", str(context.exception))
 
     def test_explicit_schema_selects_one_transaction_portfolio_heading(self) -> None:
@@ -2359,7 +2354,7 @@ class TestTransactionsLoader(unittest.TestCase):
                 "PORTFOLIO_ID",
             )
 
-    def test_nonnumeric_transaction_amount_raises_error_502(self) -> None:
+    def test_nonnumeric_transaction_amount_raises_product_error(self) -> None:
         """Malformed transaction numeric values fail with field-level context."""
         with tempfile.TemporaryDirectory() as temp_dir:
             directory = Path(temp_dir)
@@ -2375,13 +2370,12 @@ class TestTransactionsLoader(unittest.TestCase):
                     encoding="utf-8",
                 )
             path = _write_yaml(directory, configuration)
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
-            with self.assertRaises(PpaError) as context:
+            with self.assertRaises(PerfaudError) as context:
                 TransactionsLoader(specification).load("a")
 
             message = str(context.exception)
-            self.assertTrue(message.startswith("Error 502"))
             self.assertIn("transactions", message)
             self.assertIn("amount", message)
             self.assertIn("--", message)

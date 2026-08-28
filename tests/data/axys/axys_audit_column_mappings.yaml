@@ -1,7 +1,7 @@
 # =========================
-# PPAR Axys Configuration
+# perfaud Axys Configuration
 # =========================
-# This file tells PPAR where to find your Axys exports and how to interpret
+# This file tells perfaud where to find your Axys exports and how to interpret
 # the columns in those files.
 #
 # General Rules:
@@ -10,20 +10,6 @@
 # - If a mapping is omitted, only the exact normalized column name is accepted.
 # - Fields ending in "_column" contain Axys export column names.
 # - Unknown fields are rejected so spelling mistakes fail loudly.
-
-
-# =========================
-# Analytics selection
-# =========================
-analytics:
-  # Inclusive earliest reporting date to retain.
-  from_date: 2024-01-01
-
-  # Inclusive latest thru date to retain.
-  thru_date: 2024-12-31
-
-  # Classification loaded with each portfolio.
-  classification: Country
 
 
 # =========================
@@ -122,7 +108,7 @@ classifications:
 # Mappings
 # =========================
 # Groupings From The Security Master
-# Each mapping tells PPAR how to roll securities up to a grouping such as
+# Each mapping tells perfaud how to roll securities up to a grouping such as
 # sector, country, currency, or asset class.
 mappings:
   # Security -> asset class.

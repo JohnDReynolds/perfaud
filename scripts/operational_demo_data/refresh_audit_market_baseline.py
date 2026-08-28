@@ -9,10 +9,16 @@ recalibrates holding-scenario deltas before the ordinary Audit rebuild runs.
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Final
+from typing import Any, Final
 
 import pandas as pd
+
+
+def _dataframe_indexed_rows(frame: pd.DataFrame) -> Iterable[tuple[Any, Any]]:
+    """Yield pandas indexes and dynamically shaped rows."""
+    return frame.iterrows()
 
 from scripts.demo_support.market_data import ensure_market_history, price_on_or_before
 from scripts.operational_demo_data.holdings import accrued_income_for
@@ -28,7 +34,7 @@ from scripts.operational_demo_data.rebuild_audit_demo_data import (
 
 _REPO_ROOT: Final = Path(__file__).resolve().parents[2]
 _DEFAULT_AUDIT_DIRECTORY: Final = (
-    _REPO_ROOT / "ppar" / "setup_templates" / "axys_apx_audit"
+    _REPO_ROOT / "src" / "perfaud" / "templates" / "axys_apx" / "input"
 )
 _DEFAULT_MARKET_HISTORY_PATH: Final = (
     _REPO_ROOT / "_demo_output" / "demo_market_data" / "yfinance_market_history.csv"
@@ -140,7 +146,7 @@ def refresh_transactions(
     """Return baseline trades marked at their date-specific as-traded closes."""
     output = transactions.copy()
     transaction_dates = pd.to_datetime(output["TRANSACTION_DATE"])
-    for index, row in output.iterrows():
+    for index, row in _dataframe_indexed_rows(output):
         identifier = str(row["SEC"])
         transaction_code = str(row["TRAN"]).lower()
         if identifier in _NON_MARKET_IDENTIFIERS or identifier not in set(
@@ -183,7 +189,9 @@ def refresh_holdings(
         prepared_transactions["TRANSACTION_DATE"]
     )
     refreshed_parts: list[pd.DataFrame] = []
-    for (portfolio, identifier), rows in output.groupby(["PORT", "SEC"], sort=False):
+    for (raw_portfolio, raw_identifier), rows in output.groupby(["PORT", "SEC"], sort=False):
+        portfolio = str(raw_portfolio)
+        identifier = str(raw_identifier)
         rows = rows.sort_values("HOLDING_DATE").copy()
         if portfolio == "BALANCED_CONTRIBUTION":
             rows["QTY"] = rows["HOLDING_DATE"].dt.strftime("%Y-%m-%d").map(
@@ -204,7 +212,7 @@ def refresh_holdings(
         )
         quantity = float(first["MKT_VAL"]) / first_price
         previous_date = pd.Timestamp(first["HOLDING_DATE"])
-        for row_index, row in rows.iterrows():
+        for row_index, row in _dataframe_indexed_rows(rows):
             holding_date = pd.Timestamp(row["HOLDING_DATE"])
             if holding_date > previous_date:
                 interval = prepared_transactions.loc[
@@ -278,7 +286,7 @@ def recalibrate_holding_scenarios(
 ) -> pd.DataFrame:
     """Return holding corrections calibrated to refreshed prices and quantities."""
     output = scenarios.copy()
-    for index, scenario in output.iterrows():
+    for index, scenario in _dataframe_indexed_rows(output):
         mask = (
             baseline_holdings["PORT"].eq(scenario["PORT"])
             & baseline_holdings["SEC"].eq(scenario["SEC"])
@@ -322,7 +330,7 @@ def recalibrate_transaction_scenarios(
         "TRANSACTION_ID"
     )
     market_identifiers = set(market_history["identifier"])
-    for index, scenario in output.iterrows():
+    for index, scenario in _dataframe_indexed_rows(output):
         action = str(scenario["action"])
         if action == "insert":
             identifier = str(scenario["SEC"])
@@ -352,7 +360,7 @@ def recalibrate_transaction_scenarios(
         transaction_id = str(scenario["TRANSACTION_ID"])
         if transaction_id not in baseline.index:
             continue
-        base = baseline.loc[transaction_id]
+        base: Any = baseline.loc[transaction_id]
         transaction_code = str(base["TRAN"]).lower()
         if transaction_code not in _QUANTITY_SIGNS:
             continue

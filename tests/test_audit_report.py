@@ -19,55 +19,55 @@ import polars as pl
 import yaml
 
 # Test imports
-from tests import test_utilities as test_util
+from tests import audit_helpers as test_util
 
 # Project imports
-from ppar.errors import PpaError
-from ppar.audit import (
+from perfaud.errors import PerfaudError
+from perfaud.bundle import (
     REPORT_BUNDLE_REQUIRED_ARTIFACTS,
-    compare_snapshots,
     report_bundle_contract,
     report_bundle_validation_issues as _report_bundle_validation_issues,
-    write_audit_report_bundle as _write_audit_report_bundle,
-    write_audit_review_workbook,
 )
-from ppar.audit import schema as pc_cols
-from ppar.audit.performance_comparison import explain as _pc_explain
-from ppar.audit import output_policy as _pc_output_policy
-from ppar.audit import report as _pc_report
-from ppar.audit import review_model as _pc_review_model
-from ppar.audit import workbook as _pc_workbook
-from ppar.audit import workbook_formula_rows as _pc_workbook_formula_rows
-from ppar.audit import workbook_reconstruction as _pc_workbook_reconstruction
-from ppar.audit import workbook_tables as _pc_workbook_tables
-from ppar.audit.transaction_summary import (
+from perfaud.report import write_report_bundle as _write_audit_report_bundle
+from perfaud.runner import compare_snapshots
+from perfaud.workbook.tables import write_audit_review_workbook
+from perfaud import schema as pc_cols
+from perfaud.comparison import explain as _pc_explain
+from perfaud import output_policy as _pc_output_policy
+from perfaud import report as _pc_report
+from perfaud import review as _pc_review_model
+from perfaud.workbook import formula_rows as _pc_workbook_formula_rows
+from perfaud.workbook import reconstruction as _pc_workbook_reconstruction
+from perfaud.workbook import tables as _pc_workbook_tables
+from perfaud.workbook import writer as _pc_workbook
+from perfaud.transaction_summary import (
     transaction_semantics_summary,
 )
-from ppar.audit.workbook_tables import (
+from perfaud.workbook.tables import (
     _workbook_portfolio_changes_table,
     _workbook_raw_audit_trail_table,
     _workbook_security_changes_table,
     _workbook_underlying_causes_table,
 )
 
-_BASELINE_COMPARISON_PATH = Path("tests/data/axys/validation/ppar_audit.yaml")
+_BASELINE_COMPARISON_PATH = Path("tests/data/axys/validation/perfaud.yaml")
 _RESTATEMENT_COMPARISON_PATH = Path(
-    "tests/data/axys/validation/ppar_audit_restatement.yaml"
+    "tests/data/axys/validation/perfaud_restatement.yaml"
 )
 _SECURITY_RESTATEMENT_COMPARISON_PATH = Path(
-    "tests/data/axys/validation/ppar_audit_security_restatement.yaml"
+    "tests/data/axys/validation/perfaud_security_restatement.yaml"
 )
 _RESTATEMENT_TRANSACTION_RULES_PATH = Path(
-    "tests/data/axys/validation/ppar_audit_restatement_transaction_rules.yaml"
+    "tests/data/axys/validation/perfaud_restatement_transaction_rules.yaml"
 )
 _MULTI_RESTATEMENT_COMPARISON_PATH = Path(
-    "tests/data/axys/validation/ppar_audit_multi_restatement.yaml"
+    "tests/data/axys/validation/perfaud_multi_restatement.yaml"
 )
 _PORTFOLIO_COMPARISON_PATH = Path(
-    "ppar/setup_templates/axys_apx_audit/axys_apx_audit.yaml"
+    "src/perfaud/templates/axys_apx/perfaud.yaml"
 )
 _SUPPRESSED_COMPARISON_PATH = Path(
-    "tests/data/axys/validation/ppar_audit_suppressed.yaml"
+    "tests/data/axys/validation/perfaud_suppressed.yaml"
 )
 _EXPECTED_REPORT_TABLE_SCHEMA_FINGERPRINTS = {
     "portfolio": "e39d865323f67d3d55fe95b4e01f5c6b00e0b389e67f3811a0868b2c4bf8e89b",
@@ -75,7 +75,7 @@ _EXPECTED_REPORT_TABLE_SCHEMA_FINGERPRINTS = {
 }
 
 
-def write_audit_report_bundle(*args: Any, **kwargs: Any) -> dict[str, Path]:
+def write_report_bundle(*args: Any, **kwargs: Any) -> dict[str, Path]:
     """Write an HTML-only bundle and extract support for internal assertions."""
     kwargs.setdefault("include_workbook", False)
     paths = _write_audit_report_bundle(*args, **kwargs)
@@ -189,7 +189,7 @@ def _write_transaction_estimate_specification(directory: Path) -> Path:
             encoding="utf-8",
         )
 
-    specification_path = directory / "ppar_audit.yaml"
+    specification_path = directory / "perfaud.yaml"
     specification_path.write_text(
         yaml.safe_dump(
             {
@@ -244,7 +244,7 @@ def _write_transaction_commission_review_specification(directory: Path) -> Path:
             encoding="utf-8",
         )
 
-    specification_path = directory / "ppar_audit.yaml"
+    specification_path = directory / "perfaud.yaml"
     specification_path.write_text(
         yaml.safe_dump(
             {
@@ -308,7 +308,7 @@ def _write_holding_estimate_specification(
             encoding="utf-8",
         )
 
-    specification_path = directory / "ppar_audit.yaml"
+    specification_path = directory / "perfaud.yaml"
     specification_path.write_text(
         yaml.safe_dump(
             {
@@ -560,7 +560,7 @@ class TestAuditReport(unittest.TestCase):
             table=table,
         )
         with self.assertRaisesRegex(
-            PpaError,
+            PerfaudError,
             r"Performance Difference Causes would contain 100,001 rows.*"
             r"portfolios: P1 \(100,001\).*"
             r"dataset.fields: holdings.market_value \(100,001\)",
@@ -584,15 +584,15 @@ class TestAuditReport(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output_directory = Path(directory) / "oversized_bundle"
             with mock.patch(
-                "ppar.audit.workbook_tables."
+                "perfaud.workbook.tables."
                 "audit_review_workbook_sheets",
                 return_value=(oversized_sheet,),
             ):
                 with self.assertRaisesRegex(
-                    PpaError,
+                    PerfaudError,
                     "No files were written for the oversized report",
                 ):
-                    write_audit_report_bundle(
+                    write_report_bundle(
                         findings,
                         output_directory,
                         require_complete_yaml_setup=False,
@@ -687,11 +687,11 @@ class TestAuditReport(unittest.TestCase):
         findings = compare_snapshots(_RESTATEMENT_COMPARISON_PATH)
         with tempfile.TemporaryDirectory() as directory:
             with mock.patch(
-                "ppar.audit.output_integrity."
+                "perfaud.output_integrity."
                 "report_bundle_output_integrity_issues",
                 return_value=[],
             ) as deep_validation:
-                write_audit_report_bundle(
+                write_report_bundle(
                     findings,
                     directory,
                     require_complete_yaml_setup=False,
@@ -858,7 +858,7 @@ class TestAuditReport(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output_directory = Path(directory) / "bundle"
 
-            paths = write_audit_report_bundle(
+            paths = write_report_bundle(
                 findings,
                 output_directory,
                 title="Bundle Restatement",
@@ -1230,7 +1230,7 @@ class TestAuditReport(unittest.TestCase):
                         _PORTFOLIO_COMPARISON_PATH,
                         comparison_level=comparison_level,
                     )
-                    paths = write_audit_report_bundle(
+                    paths = write_report_bundle(
                         findings,
                         root / comparison_level,
                         comparison_path=_PORTFOLIO_COMPARISON_PATH,
@@ -1270,7 +1270,7 @@ class TestAuditReport(unittest.TestCase):
                 "audit_review_workbook_sheets",
                 wraps=sheet_builder,
             ) as wrapped_sheet_builder:
-                paths = write_audit_report_bundle(
+                paths = write_report_bundle(
                     findings,
                     Path(directory) / "bundle",
                     include_workbook=True,
@@ -1335,7 +1335,7 @@ class TestAuditReport(unittest.TestCase):
         """Report bundle manifests summarize comparison and extract-contract context."""
         findings = compare_snapshots(_RESTATEMENT_TRANSACTION_RULES_PATH)
         with tempfile.TemporaryDirectory() as directory:
-            paths = write_audit_report_bundle(
+            paths = write_report_bundle(
                 findings,
                 directory,
                 comparison_path=_RESTATEMENT_TRANSACTION_RULES_PATH,
@@ -1353,7 +1353,7 @@ class TestAuditReport(unittest.TestCase):
         )
         self.assertEqual(
             extract_contract["path"],
-            "packaged:ppar.setup_templates/axys_apx_audit/"
+            "packaged:perfaud/templates/axys_apx/"
             "demo_extract_availability.yaml",
         )
         self.assertTrue(extract_contract["enforce_ambiguous_axys_flows"])
@@ -1698,7 +1698,7 @@ class TestAuditReport(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output_directory = Path(directory) / "bundle"
 
-            paths = write_audit_report_bundle(
+            paths = write_report_bundle(
                 findings,
                 output_directory,
                 include_workbook=True,
@@ -2043,14 +2043,14 @@ class TestAuditReport(unittest.TestCase):
         findings = compare_snapshots(_RESTATEMENT_COMPARISON_PATH)
         with tempfile.TemporaryDirectory() as directory:
             output_directory = Path(directory) / "bundle"
-            initial_paths = write_audit_report_bundle(
+            initial_paths = write_report_bundle(
                 findings,
                 output_directory,
                 require_complete_yaml_setup=False,
             )
             self.assertTrue(initial_paths["html_report"].exists())
 
-            paths = write_audit_report_bundle(
+            paths = write_report_bundle(
                 findings,
                 output_directory,
                 include_workbook=True,
@@ -2090,7 +2090,7 @@ class TestAuditReport(unittest.TestCase):
         findings = compare_snapshots(_RESTATEMENT_COMPARISON_PATH)
         with tempfile.TemporaryDirectory() as directory:
             output_directory = Path(directory) / "bundle"
-            original_paths = write_audit_report_bundle(
+            original_paths = write_report_bundle(
                 findings,
                 output_directory,
                 require_complete_yaml_setup=False,
@@ -2102,11 +2102,11 @@ class TestAuditReport(unittest.TestCase):
                 mock.patch.object(
                     _pc_report._pc_bundle,
                     "write_report_bundle_review_summary",
-                    side_effect=PpaError("late staged failure", None),
+                    side_effect=PerfaudError("late staged failure"),
                 ),
-                self.assertRaisesRegex(PpaError, "late staged failure"),
+                self.assertRaisesRegex(PerfaudError, "late staged failure"),
             ):
-                write_audit_report_bundle(
+                write_report_bundle(
                     findings,
                     output_directory,
                     require_complete_yaml_setup=False,
@@ -2231,7 +2231,7 @@ class TestAuditReport(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             with mock.patch("builtins.__import__", side_effect=_import_without_openpyxl):
-                with self.assertRaises(PpaError) as context:
+                with self.assertRaises(PerfaudError) as context:
                     write_audit_review_workbook(
                         findings,
                         Path(directory) / "report.xlsx",
@@ -2245,7 +2245,7 @@ class TestAuditReport(unittest.TestCase):
         """Report bundles write stable CSV headers for baseline empty tables."""
         findings = compare_snapshots(_BASELINE_COMPARISON_PATH)
         with tempfile.TemporaryDirectory() as directory:
-            paths = write_audit_report_bundle(
+            paths = write_report_bundle(
                 findings,
                 directory,
                 require_complete_yaml_setup=False,
@@ -2303,7 +2303,7 @@ class TestAuditReport(unittest.TestCase):
         """Bundle validation reports required artifact files that are absent."""
         findings = compare_snapshots(_RESTATEMENT_COMPARISON_PATH)
         with tempfile.TemporaryDirectory() as directory:
-            paths = write_audit_report_bundle(
+            paths = write_report_bundle(
                 findings,
                 directory,
                 require_complete_yaml_setup=False,
@@ -2321,7 +2321,7 @@ class TestAuditReport(unittest.TestCase):
         """Bundle validation rejects missing required top-level manifest keys."""
         findings = compare_snapshots(_RESTATEMENT_COMPARISON_PATH)
         with tempfile.TemporaryDirectory() as directory:
-            paths = write_audit_report_bundle(
+            paths = write_report_bundle(
                 findings,
                 directory,
                 require_complete_yaml_setup=False,
@@ -2342,7 +2342,7 @@ class TestAuditReport(unittest.TestCase):
         """Bundle validation rejects review entrypoints outside declared artifacts."""
         findings = compare_snapshots(_RESTATEMENT_COMPARISON_PATH)
         with tempfile.TemporaryDirectory() as directory:
-            paths = write_audit_report_bundle(
+            paths = write_report_bundle(
                 findings,
                 directory,
                 require_complete_yaml_setup=False,
@@ -2368,7 +2368,7 @@ class TestAuditReport(unittest.TestCase):
         """Bundle validation rejects drift in required review-entrypoint names."""
         findings = compare_snapshots(_RESTATEMENT_COMPARISON_PATH)
         with tempfile.TemporaryDirectory() as directory:
-            paths = write_audit_report_bundle(
+            paths = write_report_bundle(
                 findings,
                 directory,
                 require_complete_yaml_setup=False,
@@ -2388,7 +2388,7 @@ class TestAuditReport(unittest.TestCase):
         """Bundle validation checks source-context manifest metadata shape."""
         findings = compare_snapshots(_RESTATEMENT_TRANSACTION_RULES_PATH)
         with tempfile.TemporaryDirectory() as directory:
-            paths = write_audit_report_bundle(
+            paths = write_report_bundle(
                 findings,
                 directory,
                 comparison_path=_RESTATEMENT_TRANSACTION_RULES_PATH,
@@ -2417,7 +2417,7 @@ class TestAuditReport(unittest.TestCase):
         """Bundle validation checks transaction-semantics manifest metadata."""
         findings = compare_snapshots(_RESTATEMENT_COMPARISON_PATH)
         with tempfile.TemporaryDirectory() as directory:
-            paths = write_audit_report_bundle(
+            paths = write_report_bundle(
                 findings,
                 directory,
                 require_complete_yaml_setup=False,
@@ -2440,7 +2440,7 @@ class TestAuditReport(unittest.TestCase):
         """Bundle validation checks compact review-summary metadata."""
         findings = compare_snapshots(_RESTATEMENT_COMPARISON_PATH)
         with tempfile.TemporaryDirectory() as directory:
-            paths = write_audit_report_bundle(
+            paths = write_report_bundle(
                 findings,
                 directory,
                 require_complete_yaml_setup=False,
@@ -2460,7 +2460,7 @@ class TestAuditReport(unittest.TestCase):
         """Bundle validation rejects drift in compact review-summary keys."""
         findings = compare_snapshots(_RESTATEMENT_COMPARISON_PATH)
         with tempfile.TemporaryDirectory() as directory:
-            paths = write_audit_report_bundle(
+            paths = write_report_bundle(
                 findings,
                 directory,
                 require_complete_yaml_setup=False,
@@ -2493,7 +2493,7 @@ class TestAuditReport(unittest.TestCase):
             for obsolete_path in obsolete_paths:
                 obsolete_path.write_text("stale", encoding="utf-8")
 
-            paths = write_audit_report_bundle(
+            paths = write_report_bundle(
                 findings,
                 output_directory,
                 include_workbook=False,
@@ -2509,7 +2509,7 @@ class TestAuditReport(unittest.TestCase):
         """Bundle validation reports workbook artifacts that are absent."""
         findings = compare_snapshots(_RESTATEMENT_COMPARISON_PATH)
         with tempfile.TemporaryDirectory() as directory:
-            paths = write_audit_report_bundle(
+            paths = write_report_bundle(
                 findings,
                 directory,
                 include_workbook=True,
@@ -2527,7 +2527,7 @@ class TestAuditReport(unittest.TestCase):
 
         findings = compare_snapshots(_RESTATEMENT_COMPARISON_PATH)
         with tempfile.TemporaryDirectory() as directory:
-            paths = write_audit_report_bundle(
+            paths = write_report_bundle(
                 findings,
                 directory,
                 include_workbook=True,
@@ -2548,7 +2548,7 @@ class TestAuditReport(unittest.TestCase):
         """Bundle validation compares manifest row counts to CSV row counts."""
         findings = compare_snapshots(_RESTATEMENT_COMPARISON_PATH)
         with tempfile.TemporaryDirectory() as directory:
-            paths = write_audit_report_bundle(
+            paths = write_report_bundle(
                 findings,
                 directory,
                 require_complete_yaml_setup=False,
@@ -2567,7 +2567,7 @@ class TestAuditReport(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             baseline = root / "baseline"
-            paths = write_audit_report_bundle(
+            paths = write_report_bundle(
                 findings,
                 baseline,
                 include_workbook=True,
@@ -2664,13 +2664,13 @@ class TestAuditReport(unittest.TestCase):
         findings = compare_snapshots(_RESTATEMENT_COMPARISON_PATH)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            first_paths = write_audit_report_bundle(
+            first_paths = write_report_bundle(
                 findings,
                 root / "first",
                 include_workbook=True,
                 require_complete_yaml_setup=False,
             )
-            second_paths = write_audit_report_bundle(
+            second_paths = write_report_bundle(
                 findings,
                 root / "second",
                 include_workbook=True,
@@ -2721,12 +2721,12 @@ class TestAuditReport(unittest.TestCase):
         findings = compare_snapshots(_RESTATEMENT_COMPARISON_PATH)
 
         with mock.patch(
-            "ppar.audit.report._pc_bundle.report_bundle_validation_issues",
+            "perfaud.report._pc_bundle.report_bundle_validation_issues",
             return_value=["simulated validation issue"],
         ):
             with tempfile.TemporaryDirectory() as directory:
-                with self.assertRaisesRegex(PpaError, "simulated validation issue"):
-                    write_audit_report_bundle(
+                with self.assertRaisesRegex(PerfaudError, "simulated validation issue"):
+                    write_report_bundle(
                         findings,
                         directory,
                         require_complete_yaml_setup=False,

@@ -4,13 +4,13 @@
 import unittest
 
 # Project imports
-from ppar.audit.data_issues import (
+from perfaud.data_issues import (
     DATA_ISSUE_REGISTRY,
     DataIssueCategory,
     DataIssueType,
 )
-from ppar.audit.performance_comparison import CauseArea, explain
-from ppar.audit.data_issues import checks as data_issues
+from perfaud.comparison import CauseArea, explain
+from perfaud.data_issues import checks as data_issues
 
 
 class TestDataIssuesVocabulary(unittest.TestCase):

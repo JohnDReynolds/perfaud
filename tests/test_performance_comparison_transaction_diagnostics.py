@@ -4,9 +4,9 @@
 import unittest
 
 # Project imports
-from ppar.audit import schema as pc_cols
-from ppar.audit.performance_comparison import _transaction_diagnostics as tx_diagnostics
-from ppar.audit.performance_comparison.findings import (
+from perfaud import schema as pc_cols
+from perfaud.comparison import _transaction_diagnostics as tx_diagnostics
+from perfaud.comparison.findings import (
     TRANSACTION_MATCH_STATUS,
     TRANSACTION_MATCH_STATUS_ADDED_IN_SNAPSHOT_B,
     TRANSACTION_MATCH_STATUS_AMBIGUOUS_FALLBACK_MATCH,
@@ -16,7 +16,7 @@ from ppar.audit.performance_comparison.findings import (
     TRANSACTION_MATCH_STATUS_SINGLETON_FALLBACK_MATCH,
     TRANSACTION_MATCH_STATUS_STRICT_FALLBACK_UNMATCHED,
 )
-from ppar.audit.transactions import (
+from perfaud.transactions import (
     TRANSACTION_SEMANTICS_SOURCE_MIXED,
     TRANSACTION_SEMANTICS_SOURCE_SOURCE,
     TRANSACTION_SEMANTICS_SOURCE_UNKNOWN,

@@ -2,7 +2,7 @@
 
 This directory contains test-only Axys CSV snapshots, a test-only Axys column
 mapping schema, and performance comparison YAML files. User-facing demo data
-lives under `ppar/setup_templates/axys_apx_audit`.
+lives under `src/perfaud/templates/axys_apx`.
 
 Keeping the synthetic fixtures here avoids mixing regression scenarios with
 the user-facing demo files.
@@ -26,23 +26,23 @@ comparison YAML scenarios. These files are used by targeted unit tests and by
 user-facing demos; they exist to keep specific edge cases covered without
 asking reviewers to inspect extra workbooks.
 
-- `validation/ppar_audit.yaml`: Tests the clean/no-issue
+- `validation/perfaud.yaml`: Tests the clean/no-issue
   control case and proves the comparison
   can run without producing false positives.
-- `validation/ppar_audit_restatement.yaml`: Tests missing
+- `validation/perfaud_restatement.yaml`: Tests missing
   transaction setup guidance on a controlled restatement.
-- `validation/ppar_audit_restatement_transaction_rules.yaml`:
+- `validation/perfaud_restatement_transaction_rules.yaml`:
   Tests that transaction amount rows become explainable when YAML supplies
   transaction rules and impact methods.
-- `validation/ppar_audit_security_restatement.yaml`: Tests
+- `validation/perfaud_security_restatement.yaml`: Tests
   security-level result comparison with security review keys.
-- `validation/ppar_audit_multi_restatement.yaml`: Stress-tests
+- `validation/perfaud_multi_restatement.yaml`: Stress-tests
   multiple portfolios, multiple periods, context rows, residual/coverage
   behavior, workbook accounting invariants, and a large clean multi-period
   background portfolio that should not create false positives.
-- `validation/ppar_audit_modified_dietz.yaml`: Tests Modified
+- `validation/perfaud_modified_dietz.yaml`: Tests Modified
   Dietz external-flow cross-check diagnostics.
-- `validation/ppar_audit_suppressed.yaml`: Tests
+- `validation/perfaud_suppressed.yaml`: Tests
   active-vs-suppressed finding behavior and audit visibility.
 
 Validate the scenario matrix with:

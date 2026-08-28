@@ -11,17 +11,17 @@ import unittest
 import polars as pl
 
 # Project imports
-from ppar.errors import PpaError
-from ppar.audit import bundle as _pc_bundle
-from ppar.audit import conservation as _conservation
-from ppar.audit import schema as pc_cols
-from ppar.audit import workbook_tables as _workbook_tables
-from ppar.audit.runner import compare_snapshots
-from ppar.audit.safety_invariants import DifferenceDisposition
+from perfaud.errors import PerfaudError
+from perfaud import bundle as _pc_bundle
+from perfaud import conservation as _conservation
+from perfaud import schema as pc_cols
+from perfaud.workbook import tables as _workbook_tables
+from perfaud.runner import compare_snapshots
+from perfaud.safety_invariants import DifferenceDisposition
 
 _CASH_HOLDING_COMPARISON_PATH = Path(
-    "ppar/setup_templates/axys_apx_audit/"
-    "axys_apx_audit.yaml"
+    "src/perfaud/templates/axys_apx/"
+    "perfaud.yaml"
 )
 
 
@@ -139,7 +139,7 @@ class TestAuditConservation(unittest.TestCase):
         findings = pl.DataFrame({"code": ["PC-ONE", "PC-TWO"]})
         broken_trail = _conservation.finding_audit_trail(findings).head(1)
 
-        with self.assertRaisesRegex(PpaError, "SN-01 no-lost-differences"):
+        with self.assertRaisesRegex(PerfaudError, "SN-01 no-lost-differences"):
             _conservation.assert_complete_finding_audit_trail(
                 findings,
                 broken_trail,
@@ -261,7 +261,7 @@ class TestAuditConservation(unittest.TestCase):
             comparison_level="portfolio",
         )
 
-        with self.assertRaisesRegex(PpaError, "SN-02 no-double-counting"):
+        with self.assertRaisesRegex(PerfaudError, "SN-02 no-double-counting"):
             _conservation.assert_cause_conservation(
                 original,
                 causes,
@@ -285,7 +285,7 @@ class TestAuditConservation(unittest.TestCase):
             comparison_level="security",
         )
 
-        with self.assertRaisesRegex(PpaError, "support-only field transactions.price"):
+        with self.assertRaisesRegex(PerfaudError, "support-only field transactions.price"):
             _conservation.assert_cause_conservation(
                 original,
                 causes,
@@ -344,7 +344,7 @@ class TestAuditConservation(unittest.TestCase):
         )
         causes = pl.DataFrame([{**period, "estimated_impact": 0.009}])
 
-        with self.assertRaisesRegex(PpaError, "SN-03 explanation invariant"):
+        with self.assertRaisesRegex(PerfaudError, "SN-03 explanation invariant"):
             # pylint: disable=protected-access
             _workbook_tables._assert_explanation_invariants(
                 primary,

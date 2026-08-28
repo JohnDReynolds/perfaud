@@ -10,19 +10,17 @@ import polars as pl
 import yaml
 
 # Test imports
-from tests import test_utilities as test_util
+from tests import audit_helpers as test_util
 
 # Project imports
-from ppar.errors import PpaError
-from ppar.audit import (
-    AuditSpecification,
-    PortfolioPerformanceLoader,
-)
-from ppar.audit import schema as pc_cols
+from perfaud.errors import PerfaudError
+from perfaud.portfolio_performance import PortfolioPerformanceLoader
+from perfaud.specification import Specification
+from perfaud import schema as pc_cols
 
-_BASELINE_COMPARISON_PATH = Path("tests/data/axys/validation/ppar_audit.yaml")
+_BASELINE_COMPARISON_PATH = Path("tests/data/axys/validation/perfaud.yaml")
 _RESTATEMENT_COMPARISON_PATH = Path(
-    "tests/data/axys/validation/ppar_audit_restatement.yaml"
+    "tests/data/axys/validation/perfaud_restatement.yaml"
 )
 
 
@@ -43,7 +41,7 @@ def _write_yaml(directory: Path, contents: object) -> Path:
             },
             **contents,
         }
-    path = directory / "ppar_audit.yaml"
+    path = directory / "perfaud.yaml"
     test_util.write_audit_test_yaml(path, contents)
     return path
 
@@ -53,7 +51,7 @@ class TestPortfolioPerformanceLoader(unittest.TestCase):
 
     def test_load_baseline_snapshot_a_portfolio_performance(self) -> None:
         """Portfolio performance rows load with normalized internal columns."""
-        specification = AuditSpecification(_BASELINE_COMPARISON_PATH)
+        specification = Specification(_BASELINE_COMPARISON_PATH)
         frame = PortfolioPerformanceLoader(specification).load("a")
 
         self.assertEqual(
@@ -70,7 +68,7 @@ class TestPortfolioPerformanceLoader(unittest.TestCase):
 
     def test_restatement_snapshot_b_loads_changed_portfolio_return(self) -> None:
         """The restatement fixture exposes a controlled portfolio return change."""
-        specification = AuditSpecification(_RESTATEMENT_COMPARISON_PATH)
+        specification = Specification(_RESTATEMENT_COMPARISON_PATH)
         frame = PortfolioPerformanceLoader(specification).load("b")
 
         target_row = frame.filter(
@@ -79,7 +77,7 @@ class TestPortfolioPerformanceLoader(unittest.TestCase):
         ).row(0, named=True)
         self.assertEqual(target_row[pc_cols.PORTFOLIO_RETURN], 0.00903281)
 
-    def test_missing_required_column_raises_error_502(self) -> None:
+    def test_missing_required_column_raises_product_error(self) -> None:
         """Portfolio performance cannot load without required normalized fields."""
         with tempfile.TemporaryDirectory() as temp_dir:
             directory = Path(temp_dir)
@@ -103,12 +101,11 @@ class TestPortfolioPerformanceLoader(unittest.TestCase):
                     "files": {"portfolio_performance": "portperf.csv"},
                 },
             )
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
-            with self.assertRaises(PpaError) as context:
+            with self.assertRaises(PerfaudError) as context:
                 PortfolioPerformanceLoader(specification).load("a")
 
-            self.assertTrue(str(context.exception).startswith("Error 502"))
             self.assertIn("portfolio_return", str(context.exception))
 
     def test_explicit_schema_selects_one_portfolio_identifier_heading(self) -> None:
@@ -150,7 +147,7 @@ class TestPortfolioPerformanceLoader(unittest.TestCase):
                 "PORTFOLIO_CODE",
             )
 
-    def test_nonnumeric_return_raises_error_502(self) -> None:
+    def test_nonnumeric_return_raises_product_error(self) -> None:
         """Malformed portfolio numeric values fail with field-level context."""
         with tempfile.TemporaryDirectory() as temp_dir:
             directory = Path(temp_dir)
@@ -172,13 +169,12 @@ class TestPortfolioPerformanceLoader(unittest.TestCase):
                     "files": {"portfolio_performance": "portperf.csv"},
                 },
             )
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
-            with self.assertRaises(PpaError) as context:
+            with self.assertRaises(PerfaudError) as context:
                 PortfolioPerformanceLoader(specification).load("a")
 
             message = str(context.exception)
-            self.assertTrue(message.startswith("Error 502"))
             self.assertIn("portfolio_performance", message)
             self.assertIn("portfolio_return", message)
             self.assertIn("N/A", message)

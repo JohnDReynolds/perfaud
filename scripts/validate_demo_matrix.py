@@ -15,31 +15,31 @@ import polars as pl
 import yaml
 
 # Project imports
-from ppar.errors import PpaError
-from ppar.audit import compare_snapshots, summarize_findings
-from ppar.audit.performance_comparison import explain as _pc_explain
-from ppar.audit import field_roles as _field_roles
-from ppar.audit.performance_comparison import findings as _pc_findings
-from ppar.audit import schema as _pc_cols
+from perfaud.errors import PerfaudError
+from perfaud.runner import compare_snapshots, summarize_findings
+from perfaud.comparison import explain as _pc_explain
+from perfaud import field_roles as _field_roles
+from perfaud.comparison import findings as _pc_findings
+from perfaud import schema as _pc_cols
 from scripts.transaction_policy_evidence import (
     CAPITAL_RETURN_BACKLOG_TRANSACTION_CODES,
     SHORT_SIDE_BACKLOG_TRANSACTION_CODES,
 )
-from ppar.audit.config_validation import validate_config
-from ppar.audit.specification import AuditSpecification
-from ppar.audit.transactions import TransactionsLoader
-from ppar.audit.report import (
+from perfaud.config import validate_config
+from perfaud.specification import Specification
+from perfaud.transactions import TransactionsLoader
+from perfaud.report import (
     _context_evidence_table,
     _residual_status_table,
 )
-from ppar.audit.workbook_tables import (
+from perfaud.workbook.tables import (
     _workbook_portfolio_changes_table,
     _workbook_raw_audit_trail_table,
     _workbook_underlying_causes_table,
 )
 
 _DEFAULT_DEMO_DIRECTORY = (
-    _REPO_ROOT / "ppar" / "setup_templates" / "axys_apx_audit"
+    _REPO_ROOT / "src" / "perfaud" / "templates" / "axys_apx"
 )
 _DEFAULT_SCENARIO_DIRECTORY = _REPO_ROOT / "tests" / "data" / "axys" / "validation"
 _DEFAULT_SNAPSHOT_DIRECTORY = _REPO_ROOT / "tests" / "data" / "axys" / "snapshots"
@@ -49,20 +49,21 @@ _DEFAULT_SITE_VARIANTS_DIRECTORY = (
 _TRANSACTION_SEMANTICS_MATRIX_PATH = (
     _REPO_ROOT
     / "docs"
+    / "reference"
     / "axys_apx"
     / "contracts"
     / "transaction_semantics_matrix.yaml"
 )
-_BASELINE_YAML = "ppar_audit.yaml"
-_RESTATEMENT_YAML = "ppar_audit_restatement.yaml"
+_BASELINE_YAML = "perfaud.yaml"
+_RESTATEMENT_YAML = "perfaud_restatement.yaml"
 _RESTATEMENT_TRANSACTION_RULES_YAML = (
-    "ppar_audit_restatement_transaction_rules.yaml"
+    "perfaud_restatement_transaction_rules.yaml"
 )
-_MULTI_YAML = "ppar_audit_multi_restatement.yaml"
-_PACKAGED_DEMO_YAML = "axys_apx_audit.yaml"
-_SITE_VARIANT_YAML = "ppar_audit.yaml"
-_MODIFIED_DIETZ_YAML = "ppar_audit_modified_dietz.yaml"
-_SUPPRESSED_YAML = "ppar_audit_suppressed.yaml"
+_MULTI_YAML = "perfaud_multi_restatement.yaml"
+_PACKAGED_DEMO_YAML = "perfaud.yaml"
+_SITE_VARIANT_YAML = "perfaud.yaml"
+_MODIFIED_DIETZ_YAML = "perfaud_modified_dietz.yaml"
+_SUPPRESSED_YAML = "perfaud_suppressed.yaml"
 
 
 @dataclass(frozen=True)
@@ -649,12 +650,12 @@ def _check_ambiguous_flow_context_variants(site_directory: Path) -> _ScenarioChe
 
 def _check_code_only_failure_guard(site_directory: Path) -> _ScenarioCheck:
     """Return whether code-only ambiguous rows still fail before classification."""
-    specification = AuditSpecification(
+    specification = Specification(
         site_directory / "imex_code_only" / _SITE_VARIANT_YAML
     )
     try:
         TransactionsLoader(specification).load("a")
-    except PpaError as error:
+    except PerfaudError as error:
         message = str(error)
         if (
             "ambiguous Axys/APX transaction codes dp, li, lo, ti, wd" in message
@@ -793,7 +794,7 @@ def _check_capital_return_and_short_side_backlog_gates() -> _ScenarioCheck:
 
 def _site_variant_transactions(site_directory: Path, variant_name: str) -> pl.DataFrame:
     """Return snapshot A transactions for one site-variant fixture."""
-    specification = AuditSpecification(
+    specification = Specification(
         site_directory / variant_name / _SITE_VARIANT_YAML
     )
     frame = TransactionsLoader(specification).load("a")

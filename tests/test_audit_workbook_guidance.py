@@ -7,10 +7,10 @@ import datetime as dt
 import unittest
 
 # Project imports
-from ppar.audit import schema as audit_schema
-from ppar.audit import workbook_guidance
-from ppar.audit import workbook_rows
-from ppar.audit.performance_comparison import findings
+from perfaud import schema as audit_schema
+from perfaud.workbook import guidance as workbook_guidance
+from perfaud.workbook import rows as workbook_rows
+from perfaud.comparison import findings
 
 
 class TestWorkbookGuidance(unittest.TestCase):

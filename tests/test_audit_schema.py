@@ -4,7 +4,7 @@
 import unittest
 
 # Project imports
-from ppar.audit import schema as pc_cols
+from perfaud import schema as pc_cols
 
 
 class TestAuditSchema(unittest.TestCase):

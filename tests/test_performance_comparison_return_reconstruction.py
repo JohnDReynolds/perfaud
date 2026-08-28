@@ -14,12 +14,12 @@ import polars as pl
 import yaml
 
 # Test imports
-from tests import test_utilities as test_util
+from tests import audit_helpers as test_util
 
 # Project imports
-from ppar.errors import PpaError
-from ppar.audit.performance_comparison import return_reconstruction as _reconstruction
-from ppar.audit.performance_comparison.return_reconstruction import (
+from perfaud.errors import PerfaudError
+from perfaud.comparison import return_reconstruction as _reconstruction
+from perfaud.comparison.return_reconstruction import (
     BEGIN_VALUE_B,
     DERIVED_DENOMINATOR_B,
     DERIVED_RETURN_DIFFERENCE,
@@ -41,15 +41,15 @@ from ppar.audit.performance_comparison.return_reconstruction import (
     return_reconstruction_summary,
     security_return_reconstruction_checks,
 )
-from ppar.audit.specification import AuditSpecification
+from perfaud.specification import Specification
 
 _PORTFOLIO_COMPARISON_PATH = Path(
-    "ppar/setup_templates/axys_apx_audit/axys_apx_audit.yaml"
+    "src/perfaud/templates/axys_apx/perfaud.yaml"
 )
 _BASELINE_COMPARISON_PATH = Path(
-    "tests/data/axys/validation/ppar_audit.yaml"
+    "tests/data/axys/validation/perfaud.yaml"
 )
-_DEMO_AXYS_APX_DIRECTORY = Path("ppar/setup_templates/axys_apx_audit")
+_DEMO_AXYS_APX_DIRECTORY = Path("src/perfaud/templates/axys_apx")
 _INTENTIONAL_PORTFOLIO_DIFFERENT_KEYS = {
     ("BALANCED", "2026-05-09", "2026-05-14"),
     ("INCOME", "2026-04-01", "2026-04-30"),
@@ -461,7 +461,7 @@ def _comparison_path_with_reconstruction_method(
             section.pop("day_count", None)
             section.pop("inclusion_rule", None)
 
-    path = directory / "ppar_audit.yaml"
+    path = directory / "perfaud.yaml"
     test_util.write_audit_test_yaml(path, configuration)
     return path
 
@@ -763,7 +763,7 @@ class TestPerformanceComparisonReturnReconstruction(unittest.TestCase):
                 column_name="MKT_VAL",
             )
 
-            with self.assertRaisesRegex(PpaError, "market_value"):
+            with self.assertRaisesRegex(PerfaudError, "market_value"):
                 portfolio_return_reconstruction_checks(path)
 
     def test_performance_calculation_rejects_blank_holdings_market_values(
@@ -782,7 +782,7 @@ class TestPerformanceComparisonReturnReconstruction(unittest.TestCase):
                 column_name="MKT_VAL",
             )
 
-            with self.assertRaisesRegex(PpaError, "finite value on every row"):
+            with self.assertRaisesRegex(PerfaudError, "finite value on every row"):
                 portfolio_return_reconstruction_checks(path)
 
     def test_performance_calculation_requires_foreign_base_market_values(
@@ -806,7 +806,7 @@ class TestPerformanceComparisonReturnReconstruction(unittest.TestCase):
             )
             _refresh_fixture_mappings(path)
 
-            with self.assertRaisesRegex(PpaError, "base_market_value"):
+            with self.assertRaisesRegex(PerfaudError, "base_market_value"):
                 portfolio_return_reconstruction_checks(path)
 
     def test_performance_calculation_requires_transaction_code_column(self) -> None:
@@ -823,7 +823,7 @@ class TestPerformanceComparisonReturnReconstruction(unittest.TestCase):
                 column_name="TRAN",
             )
 
-            with self.assertRaisesRegex(PpaError, "transaction_code"):
+            with self.assertRaisesRegex(PerfaudError, "transaction_code"):
                 portfolio_return_reconstruction_checks(path)
 
     def test_performance_calculation_rejects_blank_transaction_codes(self) -> None:
@@ -840,7 +840,7 @@ class TestPerformanceComparisonReturnReconstruction(unittest.TestCase):
                 column_name="TRAN",
             )
 
-            with self.assertRaisesRegex(PpaError, "must contain a value on every row"):
+            with self.assertRaisesRegex(PerfaudError, "must contain a value on every row"):
                 portfolio_return_reconstruction_checks(path)
 
     def test_performance_calculation_requires_transaction_amount_column(self) -> None:
@@ -857,7 +857,7 @@ class TestPerformanceComparisonReturnReconstruction(unittest.TestCase):
                 column_name="AMOUNT",
             )
 
-            with self.assertRaisesRegex(PpaError, "amount"):
+            with self.assertRaisesRegex(PerfaudError, "amount"):
                 portfolio_return_reconstruction_checks(path)
 
     def test_performance_calculation_rejects_blank_financial_amounts(self) -> None:
@@ -874,7 +874,7 @@ class TestPerformanceComparisonReturnReconstruction(unittest.TestCase):
                 column_name="AMOUNT",
             )
 
-            with self.assertRaisesRegex(PpaError, "finite value for every"):
+            with self.assertRaisesRegex(PerfaudError, "finite value for every"):
                 portfolio_return_reconstruction_checks(path)
 
     def test_performance_calculation_requires_foreign_base_amounts(self) -> None:
@@ -897,7 +897,7 @@ class TestPerformanceComparisonReturnReconstruction(unittest.TestCase):
             )
             _refresh_fixture_mappings(path)
 
-            with self.assertRaisesRegex(PpaError, "base_amount"):
+            with self.assertRaisesRegex(PerfaudError, "base_amount"):
                 portfolio_return_reconstruction_checks(path)
 
     def test_malformed_reconstruction_yaml_fails_up_front(self) -> None:
@@ -917,8 +917,8 @@ class TestPerformanceComparisonReturnReconstruction(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            with self.assertRaisesRegex(PpaError, "missing required keys"):
-                AuditSpecification(path)
+            with self.assertRaisesRegex(PerfaudError, "missing required keys"):
+                Specification(path)
 
 
 if __name__ == "__main__":

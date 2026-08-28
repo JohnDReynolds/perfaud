@@ -10,14 +10,14 @@ import polars as pl
 from polars.testing import assert_frame_equal
 
 # Project imports
-from ppar.audit import (
+from perfaud.runner import (
     compact_findings_table,
     compare_snapshots,
     summarize_findings,
 )
-from ppar.audit import workbook_reconstruction
-from ppar.audit.performance_comparison.compare import PerformanceComparison
-from ppar.audit.performance_comparison.findings import (
+from perfaud.workbook import reconstruction as workbook_reconstruction
+from perfaud.comparison.compare import PerformanceComparison
+from perfaud.comparison.findings import (
     DATASET,
     DELTA_B_MINUS_A,
     EVIDENCE_ROLE,
@@ -40,25 +40,25 @@ from ppar.audit.performance_comparison.findings import (
     SUPPRESSED,
     THRU_DATE,
 )
-from ppar.audit.performance_comparison.return_reconstruction import (
+from perfaud.comparison.return_reconstruction import (
     BEGIN_VALUE_A,
     DERIVED_DENOMINATOR_A,
     portfolio_return_reconstruction_checks,
     security_return_reconstruction_checks,
 )
-from ppar.audit.performance_comparison import return_reconstruction
-from ppar.audit.runner import AuditComparisonViews
+from perfaud.comparison import return_reconstruction
+from perfaud.runner import ComparisonViews
 
-_BASELINE_COMPARISON_PATH = Path("tests/data/axys/validation/ppar_audit.yaml")
+_BASELINE_COMPARISON_PATH = Path("tests/data/axys/validation/perfaud.yaml")
 _RESTATEMENT_COMPARISON_PATH = Path(
-    "tests/data/axys/validation/ppar_audit_restatement.yaml"
+    "tests/data/axys/validation/perfaud_restatement.yaml"
 )
 _SUPPRESSED_COMPARISON_PATH = Path(
-    "tests/data/axys/validation/ppar_audit_suppressed.yaml"
+    "tests/data/axys/validation/perfaud_suppressed.yaml"
 )
 _PACKAGED_COMPARISON_PATH = Path(
-    "ppar/setup_templates/axys_apx_audit/"
-    "axys_apx_audit.yaml"
+    "src/perfaud/templates/axys_apx/"
+    "perfaud.yaml"
 )
 _COMPACT_FINDING_COLUMNS = [
     FINDING_CODE,
@@ -105,7 +105,7 @@ class TestAuditRunner(unittest.TestCase):
 
     def test_audit_views_exactly_match_independent_comparisons(self) -> None:
         """Canonical shared findings preserve both independent result views."""
-        views = AuditComparisonViews(_PACKAGED_COMPARISON_PATH)
+        views = ComparisonViews(_PACKAGED_COMPARISON_PATH)
 
         for comparison_level in ("portfolio", "security"):
             with self.subTest(comparison_level=comparison_level):
@@ -117,7 +117,7 @@ class TestAuditRunner(unittest.TestCase):
 
     def test_audit_views_are_order_independent(self) -> None:
         """Either result level can provide the canonical shared findings."""
-        views = AuditComparisonViews(_PACKAGED_COMPARISON_PATH)
+        views = ComparisonViews(_PACKAGED_COMPARISON_PATH)
 
         security_findings = views.findings("security")
         portfolio_findings = views.findings("portfolio")
@@ -154,7 +154,7 @@ class TestAuditRunner(unittest.TestCase):
                 wraps=return_reconstruction.security_return_reconstruction_checks,
             ) as security_checks_spy,
         ):
-            views = AuditComparisonViews(
+            views = ComparisonViews(
                 _PACKAGED_COMPARISON_PATH,
                 reconstruction_cache=cache,
             )
@@ -182,7 +182,7 @@ class TestAuditRunner(unittest.TestCase):
 
     def test_packaged_views_use_reconstructed_denominators_and_weights(self) -> None:
         """Packaged explanations use holdings/transaction reconstruction inputs."""
-        views = AuditComparisonViews(_PACKAGED_COMPARISON_PATH)
+        views = ComparisonViews(_PACKAGED_COMPARISON_PATH)
         portfolio_findings = views.findings("portfolio")
         security_findings = views.findings("security")
         portfolio_checks = portfolio_return_reconstruction_checks(
@@ -267,7 +267,7 @@ class TestAuditRunner(unittest.TestCase):
 
     def test_audit_views_preserve_level_specific_suppressions(self) -> None:
         """Each derived view applies its own suppression rules before filtering."""
-        views = AuditComparisonViews(
+        views = ComparisonViews(
             _SUPPRESSED_COMPARISON_PATH,
             include_suppressed=False,
         )
@@ -290,7 +290,7 @@ class TestAuditRunner(unittest.TestCase):
             autospec=True,
         ) as compare_shared_sources:
             compare_shared_sources.side_effect = original
-            views = AuditComparisonViews(_PACKAGED_COMPARISON_PATH)
+            views = ComparisonViews(_PACKAGED_COMPARISON_PATH)
 
             views.findings("portfolio")
             views.findings("security")

@@ -10,17 +10,17 @@ import polars as pl
 from polars.testing import assert_frame_equal
 
 # Project imports
-from ppar.audit import workbook_rows
-from ppar.audit import workbook_tables
-from ppar.audit import compare_snapshots
-from ppar.audit.workbook_tables import (
+from perfaud.workbook import rows as workbook_rows
+from perfaud.workbook import tables as workbook_tables
+from perfaud.runner import compare_snapshots
+from perfaud.workbook.tables import (
     _workbook_changed_item_row,
     _workbook_raw_audit_trail_table,
     _workbook_with_primary_review_key,
 )
 
 _RESTATEMENT_AUDIT_PATH = Path(
-    "tests/data/axys/validation/ppar_audit_restatement.yaml"
+    "tests/data/axys/validation/perfaud_restatement.yaml"
 )
 
 
@@ -56,7 +56,7 @@ class TestAuditWorkbookRows(unittest.TestCase):
         classify = workbook_rows.workbook_row_kind
 
         with mock.patch(
-            "ppar.audit.workbook_rows.workbook_row_kind",
+            "perfaud.workbook.rows.workbook_row_kind",
             wraps=classify,
         ) as classify_spy:
             changed_item = _workbook_changed_item_row(row)

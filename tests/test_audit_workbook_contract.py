@@ -15,19 +15,17 @@ import unittest
 import polars as pl
 
 # Test imports
-from tests import test_utilities as test_util
+from tests import audit_helpers as test_util
 
 # Project imports
-from ppar.errors import PpaError
-from ppar.audit import (
-    compare_snapshots,
-    write_audit_report_bundle as _write_audit_report_bundle,
-)
-from ppar.audit import review_model as _pc_review_model
-from ppar.audit import workbook_tables as _pc_workbook_tables
+from perfaud.errors import PerfaudError
+from perfaud.report import write_report_bundle as _write_audit_report_bundle
+from perfaud.runner import compare_snapshots
+from perfaud import review as _pc_review_model
+from perfaud.workbook import tables as _pc_workbook_tables
 
 _PORTFOLIO_COMPARISON_PATH = Path(
-    "ppar/setup_templates/axys_apx_audit/axys_apx_audit.yaml"
+    "src/perfaud/templates/axys_apx/perfaud.yaml"
 )
 
 _EXPECTED_PORTFOLIO_SHEETS = [
@@ -68,7 +66,7 @@ _EXPECTED_NON_FULLY_EXPLAINED_PORTFOLIO_ROWS = {
 }
 
 
-def write_audit_report_bundle(*args: Any, **kwargs: Any) -> dict[str, Path]:
+def write_report_bundle(*args: Any, **kwargs: Any) -> dict[str, Path]:
     """Write a bundle and extract support for workbook contract assertions."""
     paths = _write_audit_report_bundle(*args, **kwargs)
     output_directory = Path(args[1] if len(args) > 1 else kwargs["output_directory"])
@@ -192,7 +190,7 @@ class TestAuditWorkbookContract(unittest.TestCase):
             ]
         )
 
-        with self.assertRaisesRegex(PpaError, "causes total"):
+        with self.assertRaisesRegex(PerfaudError, "causes total"):
             # pylint: disable=protected-access
             _pc_workbook_tables._assert_portfolio_explanation_invariants(
                 primary,
@@ -275,7 +273,7 @@ class TestAuditWorkbookContract(unittest.TestCase):
             }
         ]
 
-        with self.assertRaisesRegex(PpaError, "beginning_market_value"):
+        with self.assertRaisesRegex(PerfaudError, "beginning_market_value"):
             # pylint: disable=protected-access
             _pc_workbook_tables._assert_portfolio_explanation_invariants(
                 primary,
@@ -300,7 +298,7 @@ class TestAuditWorkbookContract(unittest.TestCase):
             ]
         )
 
-        with self.assertRaisesRegex(PpaError, "visible explanation invariant"):
+        with self.assertRaisesRegex(PerfaudError, "visible explanation invariant"):
             # pylint: disable=protected-access
             _pc_workbook_tables._assert_visible_explanation_contract(
                 causes,
@@ -367,7 +365,7 @@ class TestAuditWorkbookContract(unittest.TestCase):
             )
         )
         with tempfile.TemporaryDirectory() as directory:
-            paths = write_audit_report_bundle(
+            paths = write_report_bundle(
                 findings,
                 Path(directory) / "bundle",
                 include_workbook=True,
@@ -1035,7 +1033,7 @@ class TestAuditWorkbookContract(unittest.TestCase):
             comparison_level="security",
         )
         with tempfile.TemporaryDirectory() as directory:
-            paths = write_audit_report_bundle(
+            paths = write_report_bundle(
                 findings,
                 Path(directory) / "bundle",
                 include_workbook=True,
@@ -1377,7 +1375,7 @@ class TestAuditWorkbookContract(unittest.TestCase):
             comparison_level="portfolio",
         )
         with tempfile.TemporaryDirectory() as directory:
-            paths = write_audit_report_bundle(
+            paths = write_report_bundle(
                 findings,
                 Path(directory) / "bundle",
                 include_workbook=True,

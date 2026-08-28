@@ -13,10 +13,12 @@ import unittest
 import polars as pl
 
 # Project imports
-from ppar.audit import AuditSpecification, compare_snapshots, schema as pc_cols
-from ppar.audit.config_validation import validate_config
-from ppar.audit.data_issues import checks as data_issues
-from ppar.errors import PpaError
+from perfaud import schema as pc_cols
+from perfaud.config import validate_config
+from perfaud.data_issues import checks as data_issues
+from perfaud.errors import PerfaudError
+from perfaud.runner import compare_snapshots
+from perfaud.specification import Specification
 
 _COMMON_TRANSACTION_RULES = """
 transaction_rules:
@@ -60,10 +62,11 @@ class TestDataIssues(unittest.TestCase):
         """The Axys/APX demo keeps examples of every enabled X-Ref issue type."""
         comparison_path = (
             Path(__file__).resolve().parents[1]
-            / "ppar"
-            / "setup_templates"
-            / "axys_apx_audit"
-            / "axys_apx_audit.yaml"
+            / "src"
+            / "perfaud"
+            / "templates"
+            / "axys_apx"
+            / "perfaud.yaml"
         )
 
         issues = data_issues.data_issues_table(comparison_path)
@@ -91,10 +94,11 @@ class TestDataIssues(unittest.TestCase):
         """The Axys/APX demo includes a visible dividend-rate mismatch example."""
         comparison_path = (
             Path(__file__).resolve().parents[1]
-            / "ppar"
-            / "setup_templates"
-            / "axys_apx_audit"
-            / "axys_apx_audit.yaml"
+            / "src"
+            / "perfaud"
+            / "templates"
+            / "axys_apx"
+            / "perfaud.yaml"
         )
 
         issues = data_issues.data_issues_table(comparison_path)
@@ -113,10 +117,11 @@ class TestDataIssues(unittest.TestCase):
         """The Axys/APX demo includes a visible accrued-interest rate mismatch."""
         comparison_path = (
             Path(__file__).resolve().parents[1]
-            / "ppar"
-            / "setup_templates"
-            / "axys_apx_audit"
-            / "axys_apx_audit.yaml"
+            / "src"
+            / "perfaud"
+            / "templates"
+            / "axys_apx"
+            / "perfaud.yaml"
         )
 
         issues = data_issues.data_issues_table(comparison_path)
@@ -135,10 +140,11 @@ class TestDataIssues(unittest.TestCase):
         """The packaged opt-in price check flags only its deliberate population."""
         comparison_path = (
             Path(__file__).resolve().parents[1]
-            / "ppar"
-            / "setup_templates"
-            / "axys_apx_audit"
-            / "axys_apx_audit.yaml"
+            / "src"
+            / "perfaud"
+            / "templates"
+            / "axys_apx"
+            / "perfaud.yaml"
         )
 
         issues = data_issues.data_issues_table(comparison_path).filter(
@@ -164,10 +170,11 @@ class TestDataIssues(unittest.TestCase):
         """The packaged trade-price check ignores zero-quantity duplicate rows."""
         comparison_path = (
             Path(__file__).resolve().parents[1]
-            / "ppar"
-            / "setup_templates"
-            / "axys_apx_audit"
-            / "axys_apx_audit.yaml"
+            / "src"
+            / "perfaud"
+            / "templates"
+            / "axys_apx"
+            / "perfaud.yaml"
         )
 
         issues = data_issues.data_issues_table(comparison_path).filter(
@@ -193,10 +200,11 @@ class TestDataIssues(unittest.TestCase):
         """The packaged stale-price example is one observed run per snapshot."""
         comparison_path = (
             Path(__file__).resolve().parents[1]
-            / "ppar"
-            / "setup_templates"
-            / "axys_apx_audit"
-            / "axys_apx_audit.yaml"
+            / "src"
+            / "perfaud"
+            / "templates"
+            / "axys_apx"
+            / "perfaud.yaml"
         )
 
         issues = data_issues.data_issues_table(comparison_path).filter(
@@ -230,10 +238,11 @@ class TestDataIssues(unittest.TestCase):
         """The packaged population rule includes real AVGO observations."""
         comparison_path = (
             Path(__file__).resolve().parents[1]
-            / "ppar"
-            / "setup_templates"
-            / "axys_apx_audit"
-            / "axys_apx_audit.yaml"
+            / "src"
+            / "perfaud"
+            / "templates"
+            / "axys_apx"
+            / "perfaud.yaml"
         )
 
         issues = data_issues.data_issues_table(comparison_path).filter(
@@ -283,13 +292,14 @@ class TestDataIssues(unittest.TestCase):
         """The primary demo omits optional cost inputs and uses the disabled default."""
         comparison_path = (
             Path(__file__).resolve().parents[1]
-            / "ppar"
-            / "setup_templates"
-            / "axys_apx_audit"
-            / "axys_apx_audit.yaml"
+            / "src"
+            / "perfaud"
+            / "templates"
+            / "axys_apx"
+            / "perfaud.yaml"
         )
 
-        specification = AuditSpecification(
+        specification = Specification(
             comparison_path,
             comparison_level="portfolio",
         )
@@ -304,7 +314,10 @@ class TestDataIssues(unittest.TestCase):
         )
         for snapshot_name in ("snapshot_a", "snapshot_b"):
             header = (
-                comparison_path.parent / snapshot_name / "transactions.csv"
+                comparison_path.parent
+                / "input"
+                / snapshot_name
+                / "transactions.csv"
             ).read_text(encoding="utf-8").splitlines()[0].split(",")
             self.assertNotIn("ORIGINAL_COST_DATE", header)
             self.assertNotIn("ORIGINAL_COST", header)
@@ -318,10 +331,11 @@ class TestDataIssues(unittest.TestCase):
         """The packaged classification example is an isolated case-only mismatch."""
         comparison_path = (
             Path(__file__).resolve().parents[1]
-            / "ppar"
-            / "setup_templates"
-            / "axys_apx_audit"
-            / "axys_apx_audit.yaml"
+            / "src"
+            / "perfaud"
+            / "templates"
+            / "axys_apx"
+            / "perfaud.yaml"
         )
 
         issues = data_issues.data_issues_table(comparison_path).filter(
@@ -1021,13 +1035,13 @@ class TestDataIssues(unittest.TestCase):
             )
 
             with self.assertRaisesRegex(
-                PpaError,
+                PerfaudError,
                 "original_cost, original_cost_date",
             ):
                 validate_config(comparison_path, require_complete_yaml_setup=False)
 
             with self.assertRaisesRegex(
-                PpaError,
+                PerfaudError,
                 "original_cost, original_cost_date",
             ):
                 data_issues.data_issues_table(comparison_path)
@@ -1236,7 +1250,7 @@ class TestDataIssues(unittest.TestCase):
                 """,
             )
 
-            with self.assertRaisesRegex(PpaError, "one exact-case row"):
+            with self.assertRaisesRegex(PerfaudError, "one exact-case row"):
                 data_issues.data_issues_table(comparison_path)
 
     def test_data_issues_detect_duplicate_transactions(self) -> None:
@@ -1374,7 +1388,7 @@ class TestDataIssues(unittest.TestCase):
             )
 
             with self.assertRaisesRegex(
-                PpaError,
+                PerfaudError,
                 "dividend_rate.only must include transaction_code",
             ):
                 validate_config(comparison_path, require_complete_yaml_setup=False)
@@ -1510,7 +1524,7 @@ class TestDataIssues(unittest.TestCase):
                 """,
             )
 
-            with self.assertRaisesRegex(PpaError, "files.security_master"):
+            with self.assertRaisesRegex(PerfaudError, "files.security_master"):
                 data_issues.data_issues_table(comparison_path)
 
     def test_disabled_security_master_filter_does_not_require_dataset(self) -> None:
@@ -1552,7 +1566,7 @@ class TestDataIssues(unittest.TestCase):
                 """,
             )
 
-            with self.assertRaisesRegex(PpaError, "missing filter columns: ticker"):
+            with self.assertRaisesRegex(PerfaudError, "missing filter columns: ticker"):
                 data_issues.data_issues_table(comparison_path)
 
     def test_security_master_join_requires_exact_case_identifier(self) -> None:
@@ -1571,7 +1585,7 @@ class TestDataIssues(unittest.TestCase):
                 """,
             )
 
-            with self.assertRaisesRegex(PpaError, "no exact-case security_master"):
+            with self.assertRaisesRegex(PerfaudError, "no exact-case security_master"):
                 data_issues.data_issues_table(comparison_path)
 
     def test_security_master_rejects_duplicate_identifier(self) -> None:
@@ -1590,7 +1604,7 @@ class TestDataIssues(unittest.TestCase):
                 """,
             )
 
-            with self.assertRaisesRegex(PpaError, "one exact-case row"):
+            with self.assertRaisesRegex(PerfaudError, "one exact-case row"):
                 data_issues.data_issues_table(comparison_path)
 
 
@@ -1698,7 +1712,7 @@ def _write_site(
                 split_rows,
             )
 
-    comparison_path = root / "ppar.yaml"
+    comparison_path = root / "perfaud.yaml"
     optional_blocks = "\n".join(
         block
         for block in (

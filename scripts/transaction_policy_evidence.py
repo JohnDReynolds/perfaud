@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from types import MappingProxyType
 from typing import Final
 
-from ppar.transaction_codes import transaction_code_matching_key
+from perfaud.transaction_codes import transaction_code_matching_key
 
 TRANSACTION_EVIDENCE_GROUPS: Final[Mapping[str, frozenset[str]]] = (
     MappingProxyType(

@@ -13,23 +13,21 @@ import pandas as pd
 import polars as pl
 import yaml
 
-from ppar.audit import (
-    AuditSpecification,
-    TransactionsLoader,
-    compare_snapshots,
-)
-from ppar.audit.performance_comparison import portfolio_period_cause_summary
-from ppar.audit.performance_comparison.explain import (
+from perfaud.runner import compare_snapshots
+from perfaud.specification import Specification
+from perfaud.transactions import TransactionsLoader
+from perfaud.comparison import portfolio_period_cause_summary
+from perfaud.comparison.explain import (
     IMPACT_BASIS_TRANSACTION_PERFORMANCE_AMOUNT,
     ROOT_CAUSE_TRANSACTION_ACTIVITY,
 )
-from ppar.audit import schema as pc_cols
-from ppar.audit.config_validation import validate_config
+from perfaud import schema as pc_cols
+from perfaud.config import validate_config
 from scripts.transaction_policy_evidence import (
     FIXED_INCOME_BACKLOG_TRANSACTION_CODES,
     fixed_income_transaction_boundary,
 )
-from ppar.audit.transactions import (
+from perfaud.transactions import (
     TRANSACTION_CATEGORY_EXTERNAL_FLOW,
     TRANSACTION_CATEGORY_FEE_EXPENSE,
     TRANSACTION_CASH_FLOW_SIGN_NEGATIVE,
@@ -37,7 +35,7 @@ from ppar.audit.transactions import (
     TRANSACTION_PERFORMANCE_FLOW_SIGN_PERFORMANCE,
     TRANSACTION_SEMANTICS_SOURCE_YAML_RULE,
 )
-from ppar.audit.workbook_tables import (
+from perfaud.workbook.tables import (
     _workbook_raw_audit_trail_table,
     _workbook_portfolio_changes_table,
     _workbook_security_changes_table,
@@ -61,16 +59,17 @@ _RENDER_TRANSACTION_MATRIX_SCRIPT_PATH = (
 )
 _PACKAGED_AUDIT_PATH = (
     _REPO_ROOT
-    / "ppar"
-    / "setup_templates"
-    / "axys_apx_audit"
-    / "axys_apx_audit.yaml"
+    / "src"
+    / "perfaud"
+    / "templates"
+    / "axys_apx"
+    / "perfaud.yaml"
 )
 
 
-def _packaged_audit_specification() -> AuditSpecification:
+def _packaged_audit_specification() -> Specification:
     """Return the packaged starter for an explicit portfolio execution."""
-    return AuditSpecification(
+    return Specification(
         _PACKAGED_AUDIT_PATH,
         comparison_level="portfolio",
     )
@@ -86,14 +85,15 @@ def _packaged_portfolio_findings(**kwargs: Any) -> pl.DataFrame:
 _DEMO_SOURCE_CONTRACT_PATH = (
     _REPO_ROOT
     / "docs"
-    / "audit"
+    / "reference"
     / "demo_source_contract.md"
 )
 _PACKAGED_AXYS_DIRECTORY = (
-    _REPO_ROOT / "ppar" / "setup_templates" / "axys_apx_audit"
+    _REPO_ROOT / "src" / "perfaud" / "templates" / "axys_apx"
 )
+_PACKAGED_INPUT_DIRECTORY = _PACKAGED_AXYS_DIRECTORY / "input"
 _PACKAGED_AXYS_README_PATH = _PACKAGED_AXYS_DIRECTORY / "README.md"
-_PACKAGED_DEMO_GUIDE_PATH = Path("docs/audit/packaged_demo.md")
+_PACKAGED_DEMO_GUIDE_PATH = Path("docs/methodology.md")
 _DEMO_EXTRACT_AVAILABILITY_PATH = _PACKAGED_AXYS_DIRECTORY / "demo_extract_availability.yaml"
 _PACKAGED_DEMO_TRANSACTION_CODES = {
     "ai",
@@ -292,7 +292,7 @@ class TestAuditDemoData(unittest.TestCase):
         for snapshot_directory in ("snapshot_a", "snapshot_b"):
             with self.subTest(snapshot_directory=snapshot_directory):
                 transactions = pd.read_csv(
-                    _PACKAGED_AXYS_DIRECTORY / snapshot_directory / "transactions.csv",
+                    _PACKAGED_INPUT_DIRECTORY / snapshot_directory / "transactions.csv",
                     nrows=0,
                 )
 
@@ -307,59 +307,21 @@ class TestAuditDemoData(unittest.TestCase):
         scenario_columns = pd.read_csv(scenario_path, nrows=0).columns
         self.assertIn("TRANSACTION_ID", scenario_columns)
 
-    def test_packaged_demo_readme_documents_transaction_coverage_map(self) -> None:
-        """The packaged demo README names packaged, test-only, and backlog rows."""
-        text = _PACKAGED_DEMO_GUIDE_PATH.read_text(encoding="utf-8")
+    def test_packaged_workspace_readme_keeps_onboarding_concise(self) -> None:
+        """The copied README documents the only setup-created workflow."""
+        text = _PACKAGED_AXYS_README_PATH.read_text(encoding="utf-8")
 
-        for expected_text in [
-            "Current transaction coverage by home",
-            "Packaged demo rows",
-            "ordinary and reinvested `dv`",
-            "contextual margin-interest `ai`",
-            "fixed-income accrued-interest `pa`/`sa`",
-            "equity/security return-of-capital `rc`",
-            "MBS principal-paydown `pd`",
-            "external-cash `lo`, and external-cash `wd`",
-            "YAML branches reserved for runtime guards",
-            "Test-only fixtures",
-            "alternate `dp` plus `epus expense` context",
-            "Evidence-blocked backlog",
-            "Code-only `ai`/`ti`, standalone `epus`",
-            "ordinary 91282Y2Y1\n  interest uses an `in` transaction row",
-            "91282Y5Y1 `pa`/`sa` rows are packaged",
-        ]:
-            self.assertIn(expected_text, text)
-
-    def test_packaged_demo_readme_matches_current_restatement_story(self) -> None:
-        """The main packaged README keeps scenario descriptions current."""
-        text = _PACKAGED_DEMO_GUIDE_PATH.read_text(encoding="utf-8")
-
-        for expected_text in [
-            "The controlled restatement includes",
-            "`wd` external-withdrawal amount restatement",
-            "AAPL `by` transaction amount",
-            "MSFT `sl` transaction",
-            "inserted `li` row on `CASHUSD`",
-            "inserted `lo` row on `CASHUSD`",
-            "JPM `dv` gross-dividend amount",
-            "JPM `ti`\n    external-security deliver-in",
-            "JPM `rc` return-of-capital",
-            "fee-like `dp` transaction",
-            "negative `ai` margin-interest correction",
-            "missed/late AAPL `dv` row",
-            "real 2026-05-14 payable-date dividend",
-            "matched `dvwash` `by`",
-            "91282Y2Y1 `in` interest",
-            "36225MBS1 `pd` principal-paydown",
-            "paired 91282Y5Y1 `by`/`pa` and",
-        ]:
-            self.assertIn(expected_text, text)
+        self.assertIn("perfaud run", text)
+        self.assertIn("input/snapshot_a", text)
+        self.assertIn("input/snapshot_b", text)
+        self.assertIn("perfaud.yaml", text)
+        self.assertNotIn("run_audit.py", text)
 
     def test_packaged_snapshot_folders_do_not_include_local_readmes(self) -> None:
         """Setup snapshots stay focused on source CSV files."""
         for snapshot_name in ("snapshot_a", "snapshot_b"):
             with self.subTest(snapshot_name=snapshot_name):
-                self.assertFalse((_PACKAGED_AXYS_DIRECTORY / snapshot_name / "README.md").exists())
+                self.assertFalse((_PACKAGED_INPUT_DIRECTORY / snapshot_name / "README.md").exists())
 
     def test_packaged_demo_extract_availability_covers_current_headers(self) -> None:
         """Every packaged Axys/APX demo CSV field has extraction-confidence metadata."""
@@ -371,12 +333,12 @@ class TestAuditDemoData(unittest.TestCase):
         source_strategy_labels = set(availability["source_strategy_labels"])
         datasets = availability["datasets"]
         expected_files = {
-            path.name for path in (_PACKAGED_AXYS_DIRECTORY / "snapshot_a").glob("*.csv")
+            path.name for path in (_PACKAGED_INPUT_DIRECTORY / "snapshot_a").glob("*.csv")
         }
         self.assertEqual(set(datasets), expected_files)
 
         for snapshot_directory in ("snapshot_a", "snapshot_b"):
-            snapshot_path = _PACKAGED_AXYS_DIRECTORY / snapshot_directory
+            snapshot_path = _PACKAGED_INPUT_DIRECTORY / snapshot_directory
             for file_name in sorted(expected_files):
                 header = list(pd.read_csv(snapshot_path / file_name, nrows=0).columns)
                 columns = datasets[file_name]["columns"]
@@ -546,7 +508,7 @@ class TestAuditDemoData(unittest.TestCase):
         observed_codes: set[str] = set()
         for snapshot_directory in ("snapshot_a", "snapshot_b"):
             transactions = pd.read_csv(
-                _PACKAGED_AXYS_DIRECTORY / snapshot_directory / "transactions.csv"
+                _PACKAGED_INPUT_DIRECTORY / snapshot_directory / "transactions.csv"
             )
             observed_codes.update(
                 str(code).strip()
@@ -649,7 +611,7 @@ class TestAuditDemoData(unittest.TestCase):
         """Packaged transaction rows avoid synthetic semantic edge cases."""
         for snapshot_directory in ("snapshot_a", "snapshot_b"):
             transactions = pd.read_csv(
-                _PACKAGED_AXYS_DIRECTORY / snapshot_directory / "transactions.csv"
+                _PACKAGED_INPUT_DIRECTORY / snapshot_directory / "transactions.csv"
             )
             observed_codes = set(transactions["Transaction Code"].astype(str))
 
@@ -660,7 +622,7 @@ class TestAuditDemoData(unittest.TestCase):
         """User-facing corporate actions require real-world evidence first."""
         for snapshot_directory in ("snapshot_a", "snapshot_b"):
             transactions = pd.read_csv(
-                _PACKAGED_AXYS_DIRECTORY / snapshot_directory / "transactions.csv"
+                _PACKAGED_INPUT_DIRECTORY / snapshot_directory / "transactions.csv"
             )
             observed_codes = set(transactions["Transaction Code"].astype(str))
 
@@ -678,7 +640,7 @@ class TestAuditDemoData(unittest.TestCase):
         ):
             with self.subTest(snapshot_key=snapshot_key):
                 transactions = pd.read_csv(
-                    _PACKAGED_AXYS_DIRECTORY / snapshot_directory / "transactions.csv"
+                    _PACKAGED_INPUT_DIRECTORY / snapshot_directory / "transactions.csv"
                 )
                 observed_codes = set(transactions["Transaction Code"].astype(str))
 
@@ -716,7 +678,7 @@ class TestAuditDemoData(unittest.TestCase):
                 self.assertGreater(fixed_income_interest["Amount"], 0)
 
                 holdings = pd.read_csv(
-                    _PACKAGED_AXYS_DIRECTORY / snapshot_directory / "holdings.csv"
+                    _PACKAGED_INPUT_DIRECTORY / snapshot_directory / "holdings.csv"
                 )
                 fixed_income_holdings = holdings.loc[
                     holdings["Security Symbol"] == "91282Y2Y1"
@@ -2269,8 +2231,10 @@ reconstruction_roles:
 
     def test_packaged_demo_multicurrency_cash_and_base_fields(self) -> None:
         """Packaged fixtures expose exact cash IDs and explicit base values."""
-        holdings = pd.read_csv(_PACKAGED_AXYS_DIRECTORY / "snapshot_a" / "holdings.csv")
-        transactions = pd.read_csv(_PACKAGED_AXYS_DIRECTORY / "snapshot_a" / "transactions.csv")
+        holdings = pd.read_csv(_PACKAGED_INPUT_DIRECTORY / "snapshot_a" / "holdings.csv")
+        transactions = pd.read_csv(
+            _PACKAGED_INPUT_DIRECTORY / "snapshot_a" / "transactions.csv"
+        )
         self.assertTrue(
             {"CASHUSD", "CASHEUR", "CASHGBP"}.issubset(
                 set(holdings["Security Symbol"])

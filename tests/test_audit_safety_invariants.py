@@ -7,7 +7,7 @@ from pathlib import Path
 import unittest
 
 # Project imports
-from ppar.audit.safety_invariants import (
+from perfaud.safety_invariants import (
     DIFFERENCE_DISPOSITION_RULE,
     MATERIAL_DIFFERENCE_DEFINITION,
     SAFETY_INVARIANTS,
@@ -18,7 +18,7 @@ from ppar.audit.safety_invariants import (
 )
 
 _SAFETY_DOCUMENT = Path(
-    "docs/audit/safety_invariants.md"
+    "docs/reference/safety_invariants.md"
 )
 
 

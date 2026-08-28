@@ -10,25 +10,23 @@ import polars as pl
 import yaml
 
 # Test imports
-from tests import test_utilities as test_util
+from tests import audit_helpers as test_util
 
 # Project imports
-from ppar.errors import PpaError
-from ppar.audit import (
-    AuditSpecification,
-    SecurityPerformanceLoader,
-)
-from ppar.audit import schema as pc_cols
+from perfaud.errors import PerfaudError
+from perfaud.security_performance import SecurityPerformanceLoader
+from perfaud.specification import Specification
+from perfaud import schema as pc_cols
 
-_BASELINE_COMPARISON_PATH = Path("tests/data/axys/validation/ppar_audit.yaml")
+_BASELINE_COMPARISON_PATH = Path("tests/data/axys/validation/perfaud.yaml")
 _RESTATEMENT_COMPARISON_PATH = Path(
-    "tests/data/axys/validation/ppar_audit_restatement.yaml"
+    "tests/data/axys/validation/perfaud_restatement.yaml"
 )
 
 
 def _write_yaml(directory: Path, contents: object) -> Path:
     """Write comparison YAML contents and return the path."""
-    path = directory / "ppar_audit.yaml"
+    path = directory / "perfaud.yaml"
     test_util.write_audit_test_yaml(path, contents)
     return path
 
@@ -71,7 +69,7 @@ class TestSecurityPerformanceLoader(unittest.TestCase):
 
     def test_load_baseline_snapshot_a_security_performance(self) -> None:
         """Security performance rows load with normalized internal columns."""
-        specification = AuditSpecification(_BASELINE_COMPARISON_PATH)
+        specification = Specification(_BASELINE_COMPARISON_PATH)
         frame = SecurityPerformanceLoader(specification).load("a")
         assert frame is not None
 
@@ -87,7 +85,7 @@ class TestSecurityPerformanceLoader(unittest.TestCase):
 
     def test_restatement_snapshot_b_loads_changed_security_return(self) -> None:
         """The restatement fixture exposes controlled security changes."""
-        specification = AuditSpecification(_RESTATEMENT_COMPARISON_PATH)
+        specification = Specification(_RESTATEMENT_COMPARISON_PATH)
         frame = SecurityPerformanceLoader(specification).load("b")
         assert frame is not None
 
@@ -103,7 +101,7 @@ class TestSecurityPerformanceLoader(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             directory = Path(temp_dir)
             path = _write_yaml(directory, _minimal_specification(directory))
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
             self.assertIsNone(SecurityPerformanceLoader(specification).load("a"))
 
@@ -117,11 +115,11 @@ class TestSecurityPerformanceLoader(unittest.TestCase):
                 "security_performance": "missing_secperf.csv",
             }
             path = _write_yaml(directory, configuration)
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
             self.assertIsNone(SecurityPerformanceLoader(specification).load("a"))
 
-    def test_missing_required_column_raises_error_502(self) -> None:
+    def test_missing_required_column_raises_product_error(self) -> None:
         """Existing security performance files must contain required fields."""
         with tempfile.TemporaryDirectory() as temp_dir:
             directory = Path(temp_dir)
@@ -140,12 +138,11 @@ class TestSecurityPerformanceLoader(unittest.TestCase):
                     }
                 ).write_csv(directory / snapshot_name / "secperf.csv")
             path = _write_yaml(directory, configuration)
-            specification = AuditSpecification(path)
+            specification = Specification(path)
 
-            with self.assertRaises(PpaError) as context:
+            with self.assertRaises(PerfaudError) as context:
                 SecurityPerformanceLoader(specification).load("a")
 
-            self.assertTrue(str(context.exception).startswith("Error 502"))
             self.assertIn("security_return", str(context.exception))
 
     def test_explicit_schema_selects_one_security_identifier_heading(self) -> None:

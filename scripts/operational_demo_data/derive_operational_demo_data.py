@@ -1,4 +1,4 @@
-"""Derive small operational demo data from the Mega-Cap analytics demo.
+"""Derive small operational demo data from the Mega-Cap performance seed.
 
 The generated data is a prototype source for future Axys/APX and performance
 comparison demos. It intentionally writes only under ``_demo_output`` and does
@@ -10,7 +10,8 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Final
+from collections.abc import Iterable
+from typing import Any, Final, cast
 
 import pandas as pd
 import yaml
@@ -27,20 +28,10 @@ from scripts.operational_demo_data.holdings import build_operational_holdings
 
 _REPO_ROOT: Final = Path(__file__).resolve().parents[2]
 _DEFAULT_SOURCE_PATH: Final = (
-    _REPO_ROOT
-    / "ppar"
-    / "setup_templates"
-    / "generic_analytics"
-    / "performance"
-    / "Mega-Cap Alpha Portfolio.csv"
+    Path(__file__).resolve().parent / "seeds" / "portfolio_performance.csv"
 )
 _DEFAULT_SECURITY_MASTER_PATH: Final = (
-    _REPO_ROOT
-    / "ppar"
-    / "setup_templates"
-    / "generic_analytics"
-    / "classifications"
-    / "Security.csv"
+    Path(__file__).resolve().parent / "seeds" / "security_master.csv"
 )
 _DEFAULT_OUTPUT_DIRECTORY: Final = (
     _REPO_ROOT / "_demo_output" / "operational_demo_data_generation"
@@ -49,11 +40,7 @@ _DEFAULT_MARKET_HISTORY_PATH: Final = (
     _REPO_ROOT / "_demo_output" / "demo_market_data" / "yfinance_market_history.csv"
 )
 _AXYS_AUDIT_CONFIGURATION_PATH: Final = (
-    _REPO_ROOT
-    / "ppar"
-    / "setup_templates"
-    / "axys_apx_audit"
-    / "axys_apx_audit.yaml"
+    _REPO_ROOT / "src" / "perfaud" / "templates" / "axys_apx" / "perfaud.yaml"
 )
 _AXYS_SCHEMA_KEYS: Final = (
     "portfolio_performance",
@@ -92,6 +79,16 @@ _JPM_CURRENT_DIVIDEND_PER_SHARE: Final = 1.50
 _INTEREST_NOTE_TRANSACTION_ID: Final = "INCOME0603"
 _INTEREST_NOTE_IDENTIFIER: Final = "91282Y2Y1"
 _INTEREST_NOTE_DATE: Final = "2026-05-15"
+
+
+def _dataframe_rows(frame: pd.DataFrame) -> Iterable[Any]:
+    """Yield dynamically shaped pandas rows at the typed script boundary."""
+    return frame.itertuples(index=False)
+
+
+def _dataframe_indexed_rows(frame: pd.DataFrame) -> Iterable[tuple[Any, Any]]:
+    """Yield pandas indexes and dynamically shaped rows."""
+    return frame.iterrows()
 _INTEREST_NOTE_PERIOD_END: Final = "2026-05-29"
 _INTEREST_NOTE_PRIOR_AMOUNT: Final = 1_200.0
 _INTEREST_NOTE_CURRENT_AMOUNT: Final = 1_280.0
@@ -184,7 +181,7 @@ def main() -> None:
         end=performance["thru_date"].max(),
         refresh=args.refresh_market_history,
     )
-    source_reconciliation = reconcile_analytics_returns(performance, market_history)
+    source_reconciliation = reconcile_source_returns(performance, market_history)
     performance = with_market_returns(performance, market_history)
     total_return_reconciliation = reconcile_total_returns(
         market_history,
@@ -194,11 +191,11 @@ def main() -> None:
     snapshot_a = build_axys_exports(performance, market_history)
     snapshot_b = build_restatement_snapshot(snapshot_a)
     output_paths = write_outputs(performance, snapshot_a, snapshot_b, args.output_directory)
-    source_reconciliation_path = args.output_directory / "analytics_return_reconciliation.csv"
+    source_reconciliation_path = args.output_directory / "source_return_reconciliation.csv"
     total_return_path = args.output_directory / "total_return_reconciliation.csv"
     source_reconciliation.to_csv(source_reconciliation_path, index=False)
     total_return_reconciliation.to_csv(total_return_path, index=False)
-    output_paths["analytics_return_reconciliation"] = str(source_reconciliation_path)
+    output_paths["source_return_reconciliation"] = str(source_reconciliation_path)
     output_paths["total_return_reconciliation"] = str(total_return_path)
     summary = summarize_outputs(performance, output_paths)
     (args.output_directory / "summary.json").write_text(
@@ -273,7 +270,7 @@ def derive_operational_performance(
     selected_equities = select_equity_identifiers(recent, equity_count)
     rows: list[dict[str, object]] = []
     for portfolio_code, portfolio_name, sleeve_floor in _PORTFOLIOS:
-        for period in periods.itertuples(index=False):
+        for period in _dataframe_rows(periods):
             period_rows = recent[
                 recent["from_date"].eq(period.from_date)
                 & recent["thru_date"].eq(period.thru_date)
@@ -335,7 +332,7 @@ def derive_operational_performance(
     ).reset_index(drop=True)
 
 
-def reconcile_analytics_returns(
+def reconcile_source_returns(
     performance: pd.DataFrame,
     market_history: pd.DataFrame,
 ) -> pd.DataFrame:
@@ -362,7 +359,7 @@ def reconcile_analytics_returns(
         .sort_values(["identifier", "from_date"])
     )
     rows: list[dict[str, object]] = []
-    for _, row in source_rows.iterrows():
+    for _, row in _dataframe_indexed_rows(source_rows):
         adjusted_return = adjusted_period_return(
             market_history,
             str(row["identifier"]),
@@ -375,7 +372,7 @@ def reconcile_analytics_returns(
                 "identifier": row["identifier"],
                 "from_date": row["from_date"].date(),
                 "thru_date": row["thru_date"].date(),
-                "analytics_return": float(row["return"]),
+                "source_return": float(row["return"]),
                 "adjusted_price_return": adjusted_return,
                 "absolute_difference": difference,
                 "status": "fail"
@@ -428,12 +425,14 @@ def select_equity_identifiers(source: pd.DataFrame, equity_count: int) -> list[s
     if equity_count <= 0:
         raise ValueError("equity_count must be positive.")
     candidates = source[~source["identifier"].eq(_CASH_IDENTIFIER)]
-    identifiers = (
-        candidates.groupby("identifier", as_index=False)["weight"]
+    identifiers = cast(
+        list[str],
+        cast(Any, candidates)
+        .groupby("identifier", as_index=False)["weight"]
         .mean()
         .sort_values(["weight", "identifier"], ascending=[False, True])
         .head(equity_count)["identifier"]
-        .tolist()
+        .tolist(),
     )
     available_identifiers = set(candidates["identifier"])
     for required_identifier in (_JPM_DIVIDEND_IDENTIFIER, _CVNA_SPLIT_IDENTIFIER):
@@ -458,7 +457,7 @@ def _with_synthetic_cvna_rows(recent: pd.DataFrame, periods: pd.DataFrame) -> pd
         return recent
 
     rows: list[dict[str, object]] = []
-    for period in periods.itertuples(index=False):
+    for period in _dataframe_rows(periods):
         rows.append(
             {
                 "from_date": period.from_date,
@@ -729,7 +728,7 @@ def write_outputs(
             path = snapshot_directory / f"{name}.csv"
             _with_common_axys_headers(name, frame).to_csv(path, index=False)
             paths[f"{snapshot_name}_{name}"] = str(path)
-    comparison_yaml_path = output_directory / "axys_apx_audit.yaml"
+    comparison_yaml_path = output_directory / "perfaud.yaml"
     comparison_yaml_path.write_text(_comparison_yaml(), encoding="utf-8")
     paths["comparison_yaml"] = str(comparison_yaml_path)
     return paths
@@ -781,7 +780,7 @@ def _with_common_axys_headers(name: str, frame: pd.DataFrame) -> pd.DataFrame:
 
     symbols = exported["Security Symbol"].astype(str)
     security_types = symbols.map(_security_type_for_transaction)
-    symbol_position = exported.columns.get_loc("Security Symbol")
+    symbol_position = cast(int, exported.columns.get_loc("Security Symbol"))
     exported.insert(symbol_position + 1, "Security Type", security_types)
     if name == "transactions" and "Transaction Security Type" not in exported.columns:
         raise ValueError("Transactions must preserve Transaction Security Type.")
@@ -808,9 +807,9 @@ def summarize_outputs(
         ),
         "cash_and_fixed_income_identifiers": sorted(sleeve["identifier"].unique()),
         "average_cash_and_fixed_income_weight": round(float(sleeve["weight"].mean() * 4), 8),
-        "cumulative_return": round(float((1.0 + period_returns).prod() - 1.0), 8),
-        "from_date": str(performance["from_date"].min().date()),
-        "thru_date": str(performance["thru_date"].max().date()),
+        "cumulative_return": round(float(cast(Any, 1.0 + period_returns).prod() - 1.0), 8),
+        "from_date": str(pd.Timestamp(performance["from_date"].min()).date()),
+        "thru_date": str(pd.Timestamp(performance["thru_date"].max()).date()),
         "outputs": output_paths,
     }
 
@@ -840,7 +839,7 @@ def _security_master(performance: pd.DataFrame) -> pd.DataFrame:
 
 def _security_performance(performance: pd.DataFrame) -> pd.DataFrame:
     rows = []
-    for _, row in performance.iterrows():
+    for _, row in _dataframe_indexed_rows(performance):
         begin_mv = _BASE_MARKET_VALUE * float(row["weight"])
         sec_return = float(row["return"])
         rows.append(
@@ -882,14 +881,17 @@ def _portfolio_performance(performance: pd.DataFrame) -> pd.DataFrame:
         ["portfolio_code", "portfolio_name", "from_date", "thru_date"],
         sort=True,
     ):
-        portfolio_code, portfolio_name, from_date, thru_date = period
+        portfolio_code = str(period[0])
+        portfolio_name = str(period[1])
+        from_date = pd.Timestamp(str(period[2]))
+        thru_date = pd.Timestamp(str(period[3]))
         contribution = group["weight"] * group["return"]
         portfolio_return = float(contribution.sum())
         income = sum(
             _BASE_MARKET_VALUE
             * float(row["weight"])
             * _income_component(row["identifier"], float(row["return"]))
-            for _, row in group.iterrows()
+            for _, row in _dataframe_indexed_rows(group)
         )
         rows.append(
             {
@@ -922,18 +924,18 @@ def _transactions(
 ) -> pd.DataFrame:
     """Return controlled operational transactions using date-specific prices."""
     rows = []
-    for portfolio_code, group in performance.groupby("portfolio_code", sort=True):
+    for raw_portfolio_code, group in performance.groupby("portfolio_code", sort=True):
+        portfolio_code = str(raw_portfolio_code)
         equity = (
             group[group["asset_class"].eq("Equity")]
             .drop_duplicates("identifier")
             .sort_values("identifier")
             .iloc[0]
         )
-        periods = (
+        periods = _dataframe_rows(
             group[["from_date", "thru_date"]]
             .drop_duplicates()
             .sort_values("from_date")
-            .itertuples(index=False)
         )
         for period_index, period in enumerate(periods, start=1):
             transaction_date = period.from_date + pd.Timedelta(days=5)
@@ -1212,7 +1214,7 @@ def _adjust_holding_price_multiplier(
     portfolio_code: str,
     identifier: str,
     *,
-    target_date: object,
+    target_date: str | pd.Timestamp,
     price_multiplier: float,
 ) -> float:
     """Apply a holding price restatement and return the market-value delta."""
@@ -1234,7 +1236,7 @@ def _adjust_holding_price_multiplier(
 def _adjust_cash_holding(
     holdings: pd.DataFrame,
     portfolio_code: str,
-    target_date: object,
+    target_date: str | pd.Timestamp,
     *,
     cash_delta: float,
 ) -> None:
@@ -1256,7 +1258,7 @@ def _adjust_cash_holding(
 def _adjust_transaction_amount(
     transactions: pd.DataFrame,
     portfolio_code: str,
-    target_date: object,
+    target_date: str | pd.Timestamp,
     transaction_code: str,
     *,
     amount_delta: float,
@@ -1267,7 +1269,7 @@ def _adjust_transaction_amount(
     mask = (
         transactions["PORT"].eq(portfolio_code)
         & transactions["TRAN"].eq(transaction_code)
-        & transaction_dates.dt.to_period("M").eq(target.to_period("M"))
+        & transaction_dates.dt.to_period("M").astype(str).eq(str(target.to_period("M")))
     )
     if not bool(mask.any()):
         raise ValueError(
@@ -1285,7 +1287,7 @@ def _adjust_jpm_dividend_to_current_rate(
     transactions: pd.DataFrame,
     security_performance: pd.DataFrame,
     portfolio_code: str,
-    target_date: object,
+    target_date: str | pd.Timestamp,
 ) -> float:
     """Correct the JPM dividend transaction to the current rate and return delta."""
     mask = (
@@ -1340,7 +1342,7 @@ def _adjust_interest_note_to_current_amount(
 def _adjust_transaction_fields(
     transactions: pd.DataFrame,
     portfolio_code: str,
-    target_date: object,
+    target_date: str | pd.Timestamp,
     transaction_code: str,
     *,
     quantity_delta: float = 0.0,
@@ -1354,7 +1356,7 @@ def _adjust_transaction_fields(
     mask = (
         transactions["PORT"].eq(portfolio_code)
         & transactions["TRAN"].eq(transaction_code)
-        & transaction_dates.dt.to_period("M").eq(target.to_period("M"))
+        & transaction_dates.dt.to_period("M").astype(str).eq(str(target.to_period("M")))
     )
     if not bool(mask.any()):
         raise ValueError(

@@ -11,20 +11,20 @@ import polars as pl
 import yaml
 
 # Project imports
-from ppar.errors import PpaError
-from ppar.axys_apx.security_identity import (
+from perfaud.errors import PerfaudError
+from perfaud.axys_apx.security_identity import (
     SecurityIdConstruction,
     security_id_construction,
     with_constructed_security_id,
 )
-from ppar.audit import aliases
-from ppar.audit import schema as pc_cols
-from ppar.audit import source_loader
-from ppar.audit.portfolio_performance import (
+from perfaud import aliases
+from perfaud import schema as pc_cols
+from perfaud import source_loader
+from perfaud.portfolio_performance import (
     PortfolioPerformanceLoader,
 )
-from ppar.audit.specification import ComparisonSnapshot
-from ppar.audit.specification import AuditSpecification
+from perfaud.specification import ComparisonSnapshot
+from perfaud.specification import Specification
 
 
 class TestSourceLoader(unittest.TestCase):
@@ -87,7 +87,7 @@ class TestSourceLoader(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             directory = Path(temp_dir)
             specification_path = _write_source_loader_specification(directory)
-            specification = AuditSpecification(specification_path)
+            specification = Specification(specification_path)
 
             with mock.patch.object(
                 source_loader,
@@ -202,7 +202,7 @@ class TestSourceLoader(unittest.TestCase):
             )
 
             with self.assertRaisesRegex(
-                PpaError,
+                PerfaudError,
                 "Referenced schema YAML has unsupported top-level keys",
             ):
                 source_loader.aliases_with_schema_overrides(
@@ -261,7 +261,7 @@ class TestSourceLoader(unittest.TestCase):
                 }
             ).write_csv(source_path)
 
-            with self.assertRaisesRegex(PpaError, "expected one of.*portfolio_id"):
+            with self.assertRaisesRegex(PerfaudError, "expected one of.*portfolio_id"):
                 source_loader.read_mapped_csv(
                     source_path,
                     pc_cols.PORTFOLIO_PERFORMANCE_COLUMNS,
@@ -362,7 +362,7 @@ class TestSourceLoader(unittest.TestCase):
                     "Security Return": [0.01, 0.02],
                 }
             ).write_csv(source_path)
-            specification = AuditSpecification(specification_path)
+            specification = Specification(specification_path)
 
             frame = source_loader.read_schema_mapped_csv(
                 source_path,
@@ -395,7 +395,7 @@ class TestSourceLoader(unittest.TestCase):
             separator="",
         )
 
-        with self.assertRaisesRegex(PpaError, "ambiguous identifier 'abc'"):
+        with self.assertRaisesRegex(PerfaudError, "ambiguous identifier 'abc'"):
             with_constructed_security_id(
                 frame,
                 construction,
@@ -407,7 +407,7 @@ class TestSourceLoader(unittest.TestCase):
 
     def test_security_id_components_reject_source_column_captions(self) -> None:
         """Identity components use normalized mapping keys, not CSV captions."""
-        with self.assertRaisesRegex(PpaError, "normalized field names"):
+        with self.assertRaisesRegex(PerfaudError, "normalized field names"):
             security_id_construction(
                 {
                     "security_id": {
@@ -483,14 +483,14 @@ class TestSourceLoader(unittest.TestCase):
 
         self.assertIsNone(construction)
 
-    def test_read_mapped_csv_raises_error_502_for_missing_required_column(self) -> None:
+    def test_read_mapped_csv_raises_product_error_for_missing_required_column(self) -> None:
         """Missing required aliases fail with a clear source resolution error."""
         with tempfile.TemporaryDirectory() as temp_dir:
             directory = Path(temp_dir)
             path = directory / "source.csv"
             pl.DataFrame({"OTHER": ["x"]}).write_csv(path)
 
-            with self.assertRaises(PpaError) as context:
+            with self.assertRaises(PerfaudError) as context:
                 source_loader.read_mapped_csv(
                     path,
                     ("security_id",),
@@ -501,12 +501,10 @@ class TestSourceLoader(unittest.TestCase):
                 )
 
             message = str(context.exception)
-            self.assertTrue(message.startswith("Error 502"))
-            self.assertIn("Source column resolution failed", message)
             self.assertIn("Missing", message)
             self.assertIn("security_id", message)
 
-    def test_read_mapped_csv_raises_error_502_for_duplicate_optional_aliases(self) -> None:
+    def test_read_mapped_csv_raises_product_error_for_duplicate_optional_aliases(self) -> None:
         """Multiple aliases for one optional normalized column are ambiguous."""
         with tempfile.TemporaryDirectory() as temp_dir:
             directory = Path(temp_dir)
@@ -519,7 +517,7 @@ class TestSourceLoader(unittest.TestCase):
                 }
             ).write_csv(path)
 
-            with self.assertRaises(PpaError) as context:
+            with self.assertRaises(PerfaudError) as context:
                 source_loader.read_mapped_csv(
                     path,
                     ("security_id", "source_column"),
@@ -530,7 +528,6 @@ class TestSourceLoader(unittest.TestCase):
                 )
 
             message = str(context.exception)
-            self.assertTrue(message.startswith("Error 502"))
             self.assertIn("Ambiguous test dataset source columns", message)
             self.assertIn("source_column", message)
 
@@ -539,7 +536,7 @@ class TestSourceLoader(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             directory = Path(temp_dir)
             specification_path = _write_source_loader_specification(directory)
-            specification = AuditSpecification(specification_path)
+            specification = Specification(specification_path)
 
             snapshot_a_path = source_loader.optional_file_path(
                 specification,
@@ -552,15 +549,21 @@ class TestSourceLoader(unittest.TestCase):
                 "b",
             )
 
-            self.assertEqual(snapshot_a_path, directory / "snapshot_a" / "splits.csv")
-            self.assertEqual(snapshot_b_path, directory / "snapshot_b" / "splits.csv")
+            self.assertEqual(
+                snapshot_a_path,
+                directory.resolve() / "snapshot_a" / "splits.csv",
+            )
+            self.assertEqual(
+                snapshot_b_path,
+                directory.resolve() / "snapshot_b" / "splits.csv",
+            )
 
     def test_optional_file_path_returns_none_for_omitted_dataset(self) -> None:
         """Omitted optional datasets return ``None``."""
         with tempfile.TemporaryDirectory() as temp_dir:
             directory = Path(temp_dir)
             specification_path = _write_source_loader_specification(directory)
-            specification = AuditSpecification(specification_path)
+            specification = Specification(specification_path)
 
             path = source_loader.optional_file_path(
                 specification,
@@ -575,16 +578,15 @@ class TestSourceLoader(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             directory = Path(temp_dir)
             specification_path = _write_source_loader_specification(directory)
-            specification = AuditSpecification(specification_path)
+            specification = Specification(specification_path)
 
-            with self.assertRaises(PpaError) as context:
+            with self.assertRaises(PerfaudError) as context:
                 source_loader.optional_file_path(
                     specification,
                     pc_cols.SPLITS,
                     "c",
                 )
 
-            self.assertTrue(str(context.exception).startswith("Error 999"))
             self.assertIn("Unknown snapshot key", str(context.exception))
 
 
@@ -620,7 +622,7 @@ def _write_source_loader_specification(directory: Path) -> Path:
             "split_factor": 0.00000001,
         },
     }
-    specification_path = directory / "ppar_audit.yaml"
+    specification_path = directory / "perfaud.yaml"
     specification_path.write_text(yaml.safe_dump(specification), encoding="utf-8")
     return specification_path
 

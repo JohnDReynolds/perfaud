@@ -21,38 +21,54 @@ from __future__ import annotations
 
 # Python imports
 import argparse
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from functools import cache
 import json
 from pathlib import Path
-from typing import Any, Final, Mapping
+from typing import Any, Final, Mapping, cast
 
 # Third-party imports
 import pandas as pd
 import yaml
 
 # Project imports
-from ppar.audit import compare_snapshots
-from ppar.audit.performance_comparison.methods import ReturnReconstructionMethod
-from ppar.audit.performance_comparison.modified_dietz import modified_dietz_flow_weight
-from ppar.audit.specification import (
-    AuditSpecification,
+from perfaud.runner import compare_snapshots
+from perfaud.comparison.methods import ReturnReconstructionMethod
+from perfaud.comparison.modified_dietz import modified_dietz_flow_weight
+from perfaud.specification import (
+    Specification,
     PortfolioReturnReconstruction,
     SecurityReturnReconstruction,
 )
-from ppar.audit.workbook_tables import (
+from perfaud.workbook.tables import (
     _workbook_portfolio_changes_table,
     _workbook_security_changes_table,
     _workbook_underlying_causes_table,
 )
-from ppar.audit.data_issues.checks import data_issues_table
+from perfaud.data_issues.checks import data_issues_table
+
+
+def _dataframe_rows(frame: pd.DataFrame) -> Iterable[Any]:
+    """Yield dynamically shaped pandas rows at the typed script boundary."""
+    return frame.itertuples(index=False)
+
+
+def _dataframe_indexed_rows(frame: pd.DataFrame) -> Iterable[tuple[Any, Any]]:
+    """Yield pandas indexes and dynamically shaped rows."""
+    return frame.iterrows()
+
+
+def _named_rows(frame: Any) -> Iterable[dict[str, Any]]:
+    """Yield dynamically shaped named rows from an in-memory table."""
+    return cast(Iterable[dict[str, Any]], frame.iter_rows(named=True))
 
 
 _REPO_ROOT: Final = Path(__file__).resolve().parents[2]
 _DEFAULT_AXYS_APX_DIRECTORY: Final = (
-    _REPO_ROOT / "ppar" / "setup_templates" / "axys_apx_audit"
+    _REPO_ROOT / "src" / "perfaud" / "templates" / "axys_apx" / "input"
 )
-_DEFAULT_COMPARISON_PATH: Final = _DEFAULT_AXYS_APX_DIRECTORY / "axys_apx_audit.yaml"
+_DEFAULT_COMPARISON_PATH: Final = _DEFAULT_AXYS_APX_DIRECTORY.parent / "perfaud.yaml"
 _DEFAULT_HOLDING_SCENARIOS_PATH: Final = (
     Path(__file__).resolve().parent / "audit_holding_scenarios.csv"
 )
@@ -596,7 +612,8 @@ def main() -> int:
 
     if args.write:
         return 0
-    if any(snapshot["has_drift"] for snapshot in summary["snapshots"]) or audit_issues:
+    snapshots = cast(list[dict[str, Any]], summary["snapshots"])
+    if any(snapshot["has_drift"] for snapshot in snapshots) or audit_issues:
         return 1
     return 0
 
@@ -637,7 +654,8 @@ def audit_demo_data(
         transaction_scenarios_path=transaction_scenarios_path,
         write=False,
     )
-    for snapshot in rebuild_summary["snapshots"]:
+    snapshots = cast(list[dict[str, Any]], rebuild_summary["snapshots"])
+    for snapshot in snapshots:
         if snapshot["has_transaction_drift"]:
             issues.append(
                 AuditIssue(
@@ -754,7 +772,7 @@ def _audit_protected_scenario_inventory(
         "scenario_family": "scenario_family",
         "primary_security": "primary_security",
     }
-    for row in inventory.itertuples(index=False):
+    for row in _dataframe_rows(inventory):
         calendar_row = calendar_by_key.loc[str(row.scenario_key)]
         for inventory_column, calendar_column in contract_columns.items():
             expected = str(getattr(row, inventory_column))
@@ -853,7 +871,7 @@ def _audit_scenario_source_period_contract(
         axys_directory=axys_directory,
     )
     issues: list[AuditIssue] = []
-    for row in inventory.itertuples(index=False):
+    for row in _dataframe_rows(inventory):
         source_input = actual_inputs.get(str(row.scenario_key))
         if source_input is None:
             issues.append(
@@ -914,10 +932,10 @@ def _scenario_source_inputs(
             portfolio,
             pd.Timestamp(input_date).date().isoformat(),
         )
-    for adjustment in holding_scenarios.adjustments:
-        source_inputs[_holding_scenario_calendar_key(adjustment)] = (
-            adjustment.portfolio,
-            adjustment.holding_date,
+    for holding_adjustment in holding_scenarios.adjustments:
+        source_inputs[_holding_scenario_calendar_key(holding_adjustment)] = (
+            holding_adjustment.portfolio,
+            holding_adjustment.holding_date,
         )
     source_inputs.update(
         {
@@ -949,7 +967,7 @@ def _portfolio_period_containing_date(
             "portfolio_performance",
         )
         portfolio_rows = portperf[portperf["PORTFOLIO_CODE"].astype(str).eq(portfolio)]
-        for row in portfolio_rows.itertuples(index=False):
+        for row in _dataframe_rows(portfolio_rows):
             if (
                 pd.Timestamp(str(row.FROM_DATE))
                 <= date_value
@@ -987,13 +1005,13 @@ def _audit_scenario_report_contract(
             row["from_date"].isoformat(),
             row["thru_date"].isoformat(),
         ): str(row["review_status"])
-        for row in portfolio_changes.iter_rows(named=True)
+        for row in _named_rows(portfolio_changes)
     }
-    finding_rows = list(findings.iter_rows(named=True))
-    cause_rows = list(causes.iter_rows(named=True))
-    data_issues_rows = list(data_issues.iter_rows(named=True))
+    finding_rows = list(_named_rows(findings))
+    cause_rows = list(_named_rows(causes))
+    data_issues_rows = list(_named_rows(data_issues))
     issues: list[AuditIssue] = []
-    for row in inventory.itertuples(index=False):
+    for row in _dataframe_rows(inventory):
         period_key = (
             str(row.portfolio),
             str(row.story_from_date),
@@ -1042,7 +1060,7 @@ def _audit_scenario_report_contract(
                 issue
                 for issue in data_issues_rows
                 if str(issue.get("portfolio_id") or "") == str(row.portfolio)
-                and _security_symbol_from_ppar_id(issue.get("security_id"))
+                and _security_symbol_from_normalized_id(issue.get("security_id"))
                 == str(row.primary_security)
                 and str(issue.get("issue_type") or "") == expected_issue_type
                 and _date_is_within(
@@ -1115,7 +1133,7 @@ def _report_row_matches_scenario(
             str(scenario_row.story_from_date),
             str(scenario_row.story_thru_date),
         )
-        and _security_symbol_from_ppar_id(report_row.get("security_id"))
+        and _security_symbol_from_normalized_id(report_row.get("security_id"))
         == str(scenario_row.primary_security)
         and (
             report_row.get(date_field) is None
@@ -1137,8 +1155,8 @@ def _report_row_period_key(report_row: dict[str, object]) -> tuple[str, str, str
     )
 
 
-def _security_symbol_from_ppar_id(value: object) -> str:
-    """Return the source symbol from a type-first PPAR security identifier."""
+def _security_symbol_from_normalized_id(value: object) -> str:
+    """Return the source symbol from a type-first perfaud security identifier."""
     security_id = str(value or "")
     demo_security_types = {"caus", "cseu", "csgb", "csus", "fius"}
     security_type = security_id[:4]
@@ -1187,7 +1205,7 @@ def _audit_generated_causal_story_coverage(
         comparison_path=comparison_path,
     )
     expected_by_period: dict[tuple[str, str, str], set[str]] = {}
-    for row in calendar.itertuples(index=False):
+    for row in _dataframe_rows(calendar):
         if str(row.scenario_source) != "multicurrency":
             continue
         period_key = (str(row.portfolio), str(row.from_date), str(row.thru_date))
@@ -1195,8 +1213,8 @@ def _audit_generated_causal_story_coverage(
 
     story_securities: dict[tuple[str, str, str], set[str]] = {}
     explained_cash: dict[tuple[str, str, str], set[str]] = {}
-    for row in causes.iter_rows(named=True):
-        security = _security_symbol_from_ppar_id(row.get("security_id"))
+    for row in _named_rows(causes):
+        security = _security_symbol_from_normalized_id(row.get("security_id"))
         if not security:
             continue
         period_key = (
@@ -1261,7 +1279,7 @@ def rebuild_demo_performance_files(
     Returns:
         JSON-serializable audit summary with one entry per snapshot.
     """
-    specification = AuditSpecification(
+    specification = Specification(
         comparison_path,
         comparison_level="portfolio",
     )
@@ -1518,6 +1536,7 @@ def _transaction_scenario_type_counts(
     )
     counts: dict[str, int] = {}
     for scenario in transaction_scenarios.for_snapshot(snapshot_name):
+        transaction_code: str | None
         if scenario.action == "insert":
             transaction_code = str(scenario.values["TRAN"])
         else:
@@ -1580,8 +1599,9 @@ def _write_packaged_axys_frame(
     )
     if symbol_column is not None:
         security_types = _security_types_for_symbols(path, output[symbol_column])
+        symbol_position = cast(int, output.columns.get_loc(symbol_column))
         output.insert(
-            output.columns.get_loc(symbol_column) + 1,
+            symbol_position + 1,
             "Security Type",
             security_types,
         )
@@ -1879,7 +1899,7 @@ def _with_multicurrency_performance_rows(
         )
     )
     additions: list[dict[str, object]] = []
-    for period in balanced_periods.itertuples(index=False):
+    for period in _dataframe_rows(balanced_periods):
         for security in multicurrency_securities:
             key = ("BALANCED", security, period.FROM_DATE, period.THRU_DATE)
             if key in existing_keys:
@@ -2055,7 +2075,7 @@ def _derived_transaction_ids(transactions: pd.DataFrame) -> list[str]:
     period_index_by_portfolio: dict[str, dict[object, int]] = {}
     row_count_by_period: dict[tuple[str, object], int] = {}
     identifiers: list[str] = []
-    for row in transactions.itertuples(index=False):
+    for row in _dataframe_rows(transactions):
         portfolio = str(getattr(row, "PORT"))
         transaction_month = pd.Timestamp(getattr(row, "TRANSACTION_DATE")).to_period("M")
         portfolio_periods = period_index_by_portfolio.setdefault(portfolio, {})
@@ -2273,7 +2293,7 @@ def _validated_demo_reconstruction_roles(roles: Mapping[object, object]) -> None
     if unknown_roles:
         raise ValueError(
             f"{_DEFAULT_TRANSACTION_POLICY_PATH}: unsupported reconstruction "
-            f"roles {sorted(unknown_roles)}."
+            f"roles {sorted(str(role) for role in unknown_roles)}."
         )
     for role_name in ("security_flow", "income"):
         codes = roles.get(role_name)
@@ -2370,7 +2390,7 @@ def _transaction_derived_holding_adjustments(
     transaction_diffs = _changed_transaction_rows(base_prepared, current_prepared)
     holdings = _holding_values(_with_internal_cost(base_holdings))
     adjustments: list[HoldingScenarioAdjustment] = []
-    for row in transaction_diffs.itertuples(index=False):
+    for row in _dataframe_rows(transaction_diffs):
         transaction_code = str(row.TRAN)
         configured_effect = _demo_holding_effect(row)
         if configured_effect is None:
@@ -2519,10 +2539,10 @@ def _changed_transaction_rows(
     merged = merged.rename(columns={"_merge": "MERGE_STATUS"})
 
     rows: list[dict[str, object]] = []
-    for row in merged.itertuples(index=False):
+    for row in _dataframe_rows(merged):
         merge_status = str(row.MERGE_STATUS)
         if merge_status == "left_only":
-            context_values = {
+            left_context_values = {
                 column: _row_string(row, f"{column}_base") for column in context_columns
             }
             rows.append(
@@ -2532,7 +2552,7 @@ def _changed_transaction_rows(
                     "TRANSACTION_DATE": pd.Timestamp(row.TRANSACTION_DATE_base),
                     "SEC": str(row.SEC_base),
                     "TRAN": str(row.TRAN_base),
-                    **context_values,
+                    **left_context_values,
                     **{
                         f"{column}_delta": -float(getattr(row, f"{column}_base"))
                         for column in _TRANSACTION_NUMERIC_COLUMNS
@@ -2541,7 +2561,7 @@ def _changed_transaction_rows(
             )
             continue
         if merge_status == "right_only":
-            context_values = {
+            right_context_values = {
                 column: _row_string(row, f"{column}_current") for column in context_columns
             }
             rows.append(
@@ -2551,7 +2571,7 @@ def _changed_transaction_rows(
                     "TRANSACTION_DATE": pd.Timestamp(row.TRANSACTION_DATE_current),
                     "SEC": str(row.SEC_current),
                     "TRAN": str(row.TRAN_current),
-                    **context_values,
+                    **right_context_values,
                     **{
                         f"{column}_delta": float(getattr(row, f"{column}_current"))
                         for column in _TRANSACTION_NUMERIC_COLUMNS
@@ -2848,7 +2868,7 @@ def _load_holding_scenarios(path: Path) -> HoldingScenarioSet:
         raise ValueError("Holding scenario delta columns must be numeric.")
 
     adjustments: list[HoldingScenarioAdjustment] = []
-    for row_index, row in scenarios.iterrows():
+    for row_index, row in _dataframe_indexed_rows(scenarios):
         deltas = {
             column: float(converted_deltas.loc[row_index, f"{column}_delta"])
             for column in _INTERNAL_HOLDINGS_NUMERIC_COLUMNS
@@ -3022,7 +3042,7 @@ def _load_transaction_scenarios(path: Path) -> TransactionScenarioSet:
         raise ValueError("Inserted transaction scenario numeric values must be numeric.")
 
     adjustments: list[TransactionScenarioAdjustment] = []
-    for row_index, row in scenarios.iterrows():
+    for row_index, row in _dataframe_indexed_rows(scenarios):
         action = str(row["action"])
         deltas = {
             column: float(converted_deltas.loc[row_index, f"{column}_delta"])
@@ -3302,7 +3322,7 @@ def _rebuild_security_performance(
     holding_values = _holding_values(holdings)
     transaction_rows = _prepared_transactions(transactions)
     rows: list[dict[str, object]] = []
-    for row in secperf.itertuples(index=False):
+    for row in _dataframe_rows(secperf):
         begin_date = _begin_holding_date_or_none(
             holding_values,
             row.PORTFOLIO_CODE,
@@ -3364,7 +3384,7 @@ def _rebuild_portfolio_performance(
     holding_values = _holding_values(holdings)
     transaction_rows = _prepared_transactions(transactions)
     rows: list[dict[str, object]] = []
-    for row in portperf.itertuples(index=False):
+    for row in _dataframe_rows(portperf):
         begin_date = _begin_holding_date_or_none(
             holding_values,
             row.PORTFOLIO_CODE,
@@ -3537,7 +3557,7 @@ def _security_flows(
     ]
     net_flow = 0.0
     weighted_flow = 0.0
-    for row in rows.itertuples(index=False):
+    for row in _dataframe_rows(rows):
         security_flow = -float(row.AMOUNT)
         weight = _flow_weight(reconstruction, from_date, thru_date, row.TRANSACTION_DATE)
         net_flow += security_flow
@@ -3576,7 +3596,7 @@ def _portfolio_flows(
     rows = _period_transactions(transactions, portfolio_code, from_date, thru_date)
     net_flow = 0.0
     weighted_flow = 0.0
-    for row in rows.itertuples(index=False):
+    for row in _dataframe_rows(rows):
         if not _is_portfolio_external_flow(row, reconstruction):
             continue
         flow = float(row.AMOUNT)
@@ -3668,7 +3688,7 @@ def _audit_visible_portfolio_residuals(comparison_path: Path) -> list[AuditIssue
         comparison_path=comparison_path,
     )
     issues: list[AuditIssue] = []
-    for row in portfolio_rows.iter_rows(named=True):
+    for row in _named_rows(portfolio_rows):
         status = str(row["review_status"])
         if status == "Fully Explained":
             unexplained = float(row["unexplained_change"] or 0.0)
@@ -3700,7 +3720,7 @@ def _audit_visible_security_residuals(comparison_path: Path) -> list[AuditIssue]
         comparison_level="security",
     )
     issues: list[AuditIssue] = []
-    for row in security_rows.iter_rows(named=True):
+    for row in _named_rows(security_rows):
         status = str(row["review_status"])
         unexplained = float(row["unexplained_change"] or 0.0)
         if status == "Fully Explained":
@@ -3709,7 +3729,7 @@ def _audit_visible_security_residuals(comparison_path: Path) -> list[AuditIssue]
             continue
         key = (
             str(row["portfolio_id"]),
-            _security_symbol_from_ppar_id(row["security_id"]),
+            _security_symbol_from_normalized_id(row["security_id"]),
             row["from_date"].isoformat(),
             row["thru_date"].isoformat(),
             status,
@@ -3784,14 +3804,14 @@ def _audit_scenario_calendar(
     for adjustment in transaction_scenarios.adjustments:
         key = _transaction_scenario_calendar_key(adjustment)
         expected_counts[key] = expected_counts.get(key, 0) + 1
-    for adjustment in holding_scenarios.adjustments:
-        key = _holding_scenario_calendar_key(adjustment)
+    for holding_adjustment in holding_scenarios.adjustments:
+        key = _holding_scenario_calendar_key(holding_adjustment)
         expected_counts[key] = expected_counts.get(key, 0) + 1
     expected_counts.update(_MULTICURRENCY_SCENARIO_CALENDAR_KEYS)
 
     calendar_counts = {
         str(row.scenario_key): int(row.current_expected_difference_rows)
-        for row in calendar.itertuples(index=False)
+        for row in _dataframe_rows(calendar)
     }
     for key in sorted(set(expected_counts) - set(calendar_counts)):
         issues.append(
@@ -3821,7 +3841,7 @@ def _audit_scenario_calendar(
             )
 
     period_keys = _demo_portfolio_period_keys(axys_directory)
-    for row in calendar.itertuples(index=False):
+    for row in _dataframe_rows(calendar):
         period_key = (str(row.portfolio), str(row.from_date), str(row.thru_date))
         if period_key not in period_keys:
             issues.append(
@@ -3918,11 +3938,11 @@ def _scenario_isolation_matrix(inventory: pd.DataFrame) -> list[dict[str, object
     rows: list[dict[str, object]] = []
     source_period_keys = {
         (str(row.portfolio), str(row.source_from_date), str(row.source_thru_date))
-        for row in inventory.itertuples(index=False)
+        for row in _dataframe_rows(inventory)
     }
     story_period_keys = {
         (str(row.portfolio), str(row.story_from_date), str(row.story_thru_date))
-        for row in inventory.itertuples(index=False)
+        for row in _dataframe_rows(inventory)
     }
     for portfolio, from_date, thru_date in sorted(source_period_keys | story_period_keys):
         source_rows = inventory[
@@ -3987,7 +4007,7 @@ def _demo_portfolio_period_keys(axys_directory: Path) -> set[tuple[str, str, str
             axys_directory / snapshot_name / "portperf.csv",
             "portfolio_performance",
         )
-        for row in portperf.itertuples(index=False):
+        for row in _dataframe_rows(portperf):
             period_keys.add(
                 (
                     str(row.PORTFOLIO_CODE),
@@ -4003,8 +4023,8 @@ def _portfolio_residual_issue(row: dict[str, object], detail: str) -> AuditIssue
     return AuditIssue(
         check="visible_portfolio_residual",
         portfolio=str(row["portfolio_id"]),
-        from_date=row["from_date"].isoformat(),
-        thru_date=row["thru_date"].isoformat(),
+        from_date=pd.Timestamp(str(row["from_date"])).date().isoformat(),
+        thru_date=pd.Timestamp(str(row["thru_date"])).date().isoformat(),
         detail=(
             f"{detail} Status={row['review_status']}; " f"unexplained={row['unexplained_change']}."
         ),
@@ -4016,8 +4036,8 @@ def _security_residual_issue(row: dict[str, object], detail: str) -> AuditIssue:
     return AuditIssue(
         check="visible_security_residual",
         portfolio=str(row["portfolio_id"]),
-        from_date=row["from_date"].isoformat(),
-        thru_date=row["thru_date"].isoformat(),
+        from_date=pd.Timestamp(str(row["from_date"])).date().isoformat(),
+        thru_date=pd.Timestamp(str(row["thru_date"])).date().isoformat(),
         detail=(
             f"{detail} Security={row['security_id']}; "
             f"Status={row['review_status']}; unexplained={row['unexplained_change']}."

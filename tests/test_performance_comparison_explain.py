@@ -9,8 +9,8 @@ import unittest
 import polars as pl
 
 # Project imports
-from ppar.audit import compare_snapshots
-from ppar.audit.performance_comparison import (
+from perfaud.runner import compare_snapshots
+from perfaud.comparison import (
     portfolio_period_cause_summary,
     portfolio_period_contribution_candidates,
     portfolio_period_evidence_breakdown,
@@ -23,8 +23,8 @@ from ppar.audit.performance_comparison import (
     transaction_activity_summary,
     transaction_matching_diagnostics,
 )
-from ppar.audit.performance_comparison import explain as pc_explain
-from ppar.audit.performance_comparison.explain import (
+from perfaud.comparison import explain as pc_explain
+from perfaud.comparison.explain import (
     AMOUNT_DELTA,
     CHANGED_FIELDS,
     CONTEXT_FINDING_COUNT,
@@ -90,8 +90,8 @@ from ppar.audit.performance_comparison.explain import (
     TRANSACTION_MATCH_REVIEW_NOTE,
     TRANSACTION_SEMANTICS_SOURCES,
 )
-from ppar.audit import schema as pc_cols
-from ppar.audit.performance_comparison.findings import (
+from perfaud import schema as pc_cols
+from perfaud.comparison.findings import (
     CONTEXT,
     DATASET,
     DIRECT_INPUT,
@@ -121,18 +121,18 @@ from ppar.audit.performance_comparison.findings import (
     TRANSACTION_SEMANTICS_SOURCE,
 )
 
-_BASELINE_COMPARISON_PATH = Path("tests/data/axys/validation/ppar_audit.yaml")
+_BASELINE_COMPARISON_PATH = Path("tests/data/axys/validation/perfaud.yaml")
 _RESTATEMENT_COMPARISON_PATH = Path(
-    "tests/data/axys/validation/ppar_audit_restatement.yaml"
+    "tests/data/axys/validation/perfaud_restatement.yaml"
 )
 _SECURITY_RESTATEMENT_COMPARISON_PATH = Path(
-    "tests/data/axys/validation/ppar_audit_security_restatement.yaml"
+    "tests/data/axys/validation/perfaud_security_restatement.yaml"
 )
 _RESTATEMENT_TRANSACTION_RULES_PATH = Path(
-    "tests/data/axys/validation/ppar_audit_restatement_transaction_rules.yaml"
+    "tests/data/axys/validation/perfaud_restatement_transaction_rules.yaml"
 )
 _SUPPRESSED_COMPARISON_PATH = Path(
-    "tests/data/axys/validation/ppar_audit_suppressed.yaml"
+    "tests/data/axys/validation/perfaud_suppressed.yaml"
 )
 
 

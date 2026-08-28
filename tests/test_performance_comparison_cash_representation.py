@@ -11,17 +11,17 @@ import unittest
 import yaml
 
 # Test imports
-from tests import test_utilities as test_util
+from tests import audit_helpers as test_util
 
 # Project imports
-from ppar.errors import PpaError
-from ppar.audit import schema as pc_cols
-from ppar.audit.source_data_contract import source_data_contract
-from ppar.audit.specification import AuditSpecification
+from perfaud.errors import PerfaudError
+from perfaud import schema as pc_cols
+from perfaud.source_data_contract import source_data_contract
+from perfaud.specification import Specification
 
 _AXYS_APX_STARTER = Path(
-    "ppar/setup_templates/axys_apx_audit/"
-    "axys_apx_audit.yaml"
+    "src/perfaud/templates/axys_apx/"
+    "perfaud.yaml"
 )
 
 
@@ -76,11 +76,11 @@ class TestCashRepresentationContract(unittest.TestCase):
                     "cash": "cash.csv",
                 },
             }
-            path = directory / "ppar.yaml"
+            path = directory / "perfaud.yaml"
             test_util.write_audit_test_yaml(path, configuration)
 
-            with self.assertRaisesRegex(PpaError, "files.cash is not supported"):
-                AuditSpecification(path)
+            with self.assertRaisesRegex(PerfaudError, "files.cash is not supported"):
+                Specification(path)
 
     def test_axys_apx_starter_uses_holdings_for_cash(self) -> None:
         """The user-facing starter cannot quietly restore files.cash."""
@@ -113,14 +113,14 @@ class TestCashRepresentationContract(unittest.TestCase):
                 "files": {"portfolio_performance": "portperf.csv"},
                 "cash_impact_methods": {},
             }
-            path = directory / "ppar.yaml"
+            path = directory / "perfaud.yaml"
             test_util.write_audit_test_yaml(path, configuration)
 
             with self.assertRaisesRegex(
-                PpaError,
+                PerfaudError,
                 "YAML has unsupported top-level keys: cash_impact_methods",
             ):
-                AuditSpecification(path)
+                Specification(path)
 
 
 if __name__ == "__main__":

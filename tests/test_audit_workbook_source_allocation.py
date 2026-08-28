@@ -8,13 +8,13 @@ import unittest
 from unittest import mock
 
 # Project imports
-from ppar.audit import compare_snapshots
-from ppar.audit import workbook_reconstruction
-from ppar.audit import workbook_source_allocation
-from ppar.audit import workbook_tables
+from perfaud.runner import compare_snapshots
+from perfaud.workbook import reconstruction as workbook_reconstruction
+from perfaud.workbook import source_allocation as workbook_source_allocation
+from perfaud.workbook import tables as workbook_tables
 
 _PORTFOLIO_COMPARISON_PATH = Path(
-    "ppar/setup_templates/axys_apx_audit/axys_apx_audit.yaml"
+    "src/perfaud/templates/axys_apx/perfaud.yaml"
 )
 
 

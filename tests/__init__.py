@@ -1,1 +1,1 @@
-"""Test suite package for ppar."""
+"""Test suite package for perfaud."""

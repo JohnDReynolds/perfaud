@@ -24,8 +24,8 @@ default or future versioned Axys/APX Audit profile.
 
 The `imex_context` and `rep_semantics` contract files intentionally match the
 documented onboarding profiles in
-`docs/axys_apx/contracts/templates/site_extract_contract_imex_context.yaml` and
-`docs/axys_apx/contracts/templates/site_extract_contract_rep_semantics.yaml`.
+`docs/reference/axys_apx/contracts/templates/site_extract_contract_imex_context.yaml` and
+`docs/reference/axys_apx/contracts/templates/site_extract_contract_rep_semantics.yaml`.
 
 For all candidate override profiles, cost basis, principal, factor, and
 amortization details are best-efforts demo-construction context unless a future

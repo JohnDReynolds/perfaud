@@ -11,19 +11,19 @@ import unittest
 # Third-party imports
 import polars as pl
 # Test imports
-from tests import test_utilities as test_util
+from tests import audit_helpers as test_util
 
 # Project imports
-from ppar.errors import PpaError
-from ppar.audit import schema as pc_cols
-from ppar.audit import conservation
-from ppar.audit import financial_integrity
-from ppar.audit.performance_comparison import findings as pc_findings
-from ppar.audit.portfolio_performance import PortfolioPerformanceLoader
-from ppar.audit.period_linking import validate_portfolio_periods
-from ppar.audit.runner import compare_snapshots
-from ppar.audit.specification import AuditSpecification
-from ppar.audit.data_issues import checks as data_issues
+from perfaud.errors import PerfaudError
+from perfaud import schema as pc_cols
+from perfaud import conservation
+from perfaud import financial_integrity
+from perfaud.comparison import findings as pc_findings
+from perfaud.portfolio_performance import PortfolioPerformanceLoader
+from perfaud.period_linking import validate_portfolio_periods
+from perfaud.runner import compare_snapshots
+from perfaud.specification import Specification
+from perfaud.data_issues import checks as data_issues
 
 
 class TestAuditFinancialIntegrity(unittest.TestCase):
@@ -68,7 +68,7 @@ class TestAuditFinancialIntegrity(unittest.TestCase):
                 extra_config={"data_issues": {"enabled": False}},
             )
 
-            specification = AuditSpecification(comparison_path)
+            specification = Specification(comparison_path)
             performance = PortfolioPerformanceLoader(specification).load("a")
             issues = data_issues.data_issues_table(comparison_path)
 
@@ -92,15 +92,15 @@ class TestAuditFinancialIntegrity(unittest.TestCase):
                     "P1,2026-01-15,2026-02-15,1100,1200,0.09,USD",
                 ),
             )
-            specification = AuditSpecification(comparison_path)
+            specification = Specification(comparison_path)
 
-            with self.assertRaisesRegex(PpaError, "SN-07.*overlapping periods"):
+            with self.assertRaisesRegex(PerfaudError, "SN-07.*overlapping periods"):
                 PortfolioPerformanceLoader(specification).load("a")
 
     def test_security_period_validation_keeps_duplicates_and_scopes_independent(
         self,
     ) -> None:
-        """SN-07 leaves duplicate-key handling to Error 112 and scopes securities."""
+        """SN-07 leaves duplicate-key handling to product validation and scopes securities."""
         periods = pl.DataFrame(
             {
                 pc_cols.PORTFOLIO_ID: ["P1", "P1", "P1", "P1"],
@@ -141,7 +141,7 @@ class TestAuditFinancialIntegrity(unittest.TestCase):
                 ),
             )
 
-            with self.assertRaisesRegex(PpaError, "SN-06.*base_market_value"):
+            with self.assertRaisesRegex(PerfaudError, "SN-06.*base_market_value"):
                 compare_snapshots(comparison_path)
 
     def test_invalid_currency_code_fails_source_contract(self) -> None:
@@ -155,7 +155,7 @@ class TestAuditFinancialIntegrity(unittest.TestCase):
                 ),
             )
 
-            with self.assertRaisesRegex(PpaError, "SN-06.*three-letter currency"):
+            with self.assertRaisesRegex(PerfaudError, "SN-06.*three-letter currency"):
                 compare_snapshots(comparison_path)
 
     def test_out_of_period_transaction_cannot_own_explained_performance(self) -> None:
@@ -180,7 +180,7 @@ class TestAuditFinancialIntegrity(unittest.TestCase):
             comparison_level="portfolio",
         )
 
-        with self.assertRaisesRegex(PpaError, "SN-07.*outside performance period"):
+        with self.assertRaisesRegex(PerfaudError, "SN-07.*outside performance period"):
             conservation.assert_cause_conservation(
                 original,
                 causes,
@@ -265,7 +265,7 @@ def _write_site(
         }
     if extra_config:
         configuration.update(extra_config)
-    comparison_path = root / "ppar.yaml"
+    comparison_path = root / "perfaud.yaml"
     test_util.write_audit_test_yaml(comparison_path, configuration)
     return comparison_path
 

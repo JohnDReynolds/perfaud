@@ -8,15 +8,15 @@ import unittest
 
 import polars as pl
 
-from ppar.errors import PpaError
-from ppar.audit import compare_snapshots
-from ppar.audit import executive_summary
-from ppar.audit import review_model
-from ppar.audit import workbook_tables
-from ppar.audit.data_issues import checks as data_issue_checks
-from ppar.audit.performance_comparison import findings
+from perfaud.errors import PerfaudError
+from perfaud.runner import compare_snapshots
+from perfaud import executive_summary
+from perfaud import review
+from perfaud.workbook import tables as workbook_tables
+from perfaud.data_issues import checks as data_issue_checks
+from perfaud.comparison import findings
 
-_RESTATEMENT_PATH = Path("tests/data/axys/validation/ppar_audit_restatement.yaml")
+_RESTATEMENT_PATH = Path("tests/data/axys/validation/perfaud_restatement.yaml")
 
 
 class TestAuditExecutiveSummary(unittest.TestCase):
@@ -29,8 +29,8 @@ class TestAuditExecutiveSummary(unittest.TestCase):
             comparison_path=_RESTATEMENT_PATH,
         )
 
-        self.assertEqual(sheets[0].artifact_name, review_model.EXECUTIVE_SUMMARY_ARTIFACT)
-        self.assertEqual(sheets[0].sheet_name, review_model.EXECUTIVE_SUMMARY_SHEET)
+        self.assertEqual(sheets[0].artifact_name, review.EXECUTIVE_SUMMARY_ARTIFACT)
+        self.assertEqual(sheets[0].sheet_name, review.EXECUTIVE_SUMMARY_SHEET)
         self.assertEqual(
             sheets[0].table.columns,
             list(executive_summary.EXECUTIVE_SUMMARY_COLUMNS),
@@ -58,9 +58,9 @@ class TestAuditExecutiveSummary(unittest.TestCase):
         self.assertEqual(
             [sheet.sheet_name for sheet in sheets[1:4]],
             [
-                review_model.PERFORMANCE_DIFFERENCES_SHEET,
-                review_model.PERFORMANCE_DIFFERENCE_CAUSES_SHEET,
-                review_model.DATA_ISSUES_SHEET,
+                review.PERFORMANCE_DIFFERENCES_SHEET,
+                review.PERFORMANCE_DIFFERENCE_CAUSES_SHEET,
+                review.DATA_ISSUES_SHEET,
             ],
         )
 
@@ -131,13 +131,13 @@ class TestAuditExecutiveSummary(unittest.TestCase):
     def test_unknown_status_and_issue_type_fail_closed(self) -> None:
         """The quantity summary cannot silently discard unknown product values."""
         context = executive_summary.ExecutiveSummaryContext("portfolio")
-        with self.assertRaisesRegex(PpaError, "unknown performance status"):
+        with self.assertRaisesRegex(PerfaudError, "unknown performance status"):
             executive_summary.executive_summary_table(
                 pl.DataFrame([_primary_row("P1", 1, "not_registered")]),
                 pl.DataFrame(schema={data_issue_checks.ISSUE_TYPE: pl.String}),
                 context=context,
             )
-        with self.assertRaisesRegex(PpaError, "unknown Data Issues issue type"):
+        with self.assertRaisesRegex(PerfaudError, "unknown Data Issues issue type"):
             executive_summary.executive_summary_table(
                 pl.DataFrame(),
                 pl.DataFrame([{data_issue_checks.ISSUE_TYPE: "not_registered"}]),

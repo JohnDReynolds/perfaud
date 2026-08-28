@@ -9,17 +9,17 @@ import unittest
 import polars as pl
 
 # Project imports
-from ppar.errors import PpaError
-from ppar.audit import schema as pc_cols
-from ppar.audit.currency_basis import (
+from perfaud.errors import PerfaudError
+from perfaud import schema as pc_cols
+from perfaud.currency_basis import (
     PORTFOLIO_BASE_CURRENCY_BASIS,
     ROW_CURRENCY_BASIS,
     base_currency_monetary_value,
     monetary_field_currency_basis,
     normalize_currency_columns,
 )
-from ppar.audit.performance_comparison.compare import _implied_conversion_message
-from ppar.audit.performance_comparison import return_reconstruction as _reconstruction
+from perfaud.comparison.compare import _implied_conversion_message
+from perfaud.comparison import return_reconstruction as _reconstruction
 
 
 class TestPerformanceComparisonCurrencyBasis(unittest.TestCase):
@@ -163,7 +163,7 @@ class TestPerformanceComparisonCurrencyBasis(unittest.TestCase):
                 base_field=pc_cols.BASE_AMOUNT,
             )
         )
-        with self.assertRaisesRegex(PpaError, "transactions.base_amount"):
+        with self.assertRaisesRegex(PerfaudError, "transactions.base_amount"):
             # pylint: disable=protected-access
             _reconstruction._required_base_currency_value(
                 row,

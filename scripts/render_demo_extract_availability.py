@@ -13,13 +13,19 @@ import yaml
 _REPO_ROOT: Final = Path(__file__).resolve().parents[1]
 _DEFAULT_CONTRACT_PATH: Final = (
     _REPO_ROOT
-    / "ppar"
-    / "setup_templates"
-    / "axys_apx_audit"
+    / "src"
+    / "perfaud"
+    / "templates"
+    / "axys_apx"
     / "demo_extract_availability.yaml"
 )
 _DEFAULT_OUTPUT_PATH: Final = (
-    _REPO_ROOT / "docs" / "axys_apx" / "contracts" / "demo_extract_availability.md"
+    _REPO_ROOT
+    / "docs"
+    / "reference"
+    / "axys_apx"
+    / "contracts"
+    / "demo_extract_availability.md"
 )
 _DATASET_LABELS: Final[dict[str, str]] = {
     "holdings.csv": "holdings",
@@ -137,14 +143,14 @@ def render_markdown(contract: Mapping[str, Any]) -> str:
     """Return rendered contract markdown from the YAML contract."""
     datasets = _mapping(contract, "datasets")
     lines = [
-        "# PPAR Axys/APX Extract Requirements and Source Guidance",
+        "# perfaud Axys/APX Extract Requirements and Source Guidance",
         "",
         "Repository: AXYS / APX Reference Repository",
-        "Scope: `ppar/setup_templates/axys_apx_audit/snapshot_a` and",
-        "`ppar/setup_templates/axys_apx_audit/snapshot_b`",
+        "Scope: `src/perfaud/templates/axys_apx/snapshot_a` and",
+        "`src/perfaud/templates/axys_apx/snapshot_b`",
         "Status: Draft confidence matrix generated from the packaged YAML contract.",
         "",
-        "<!-- GENERATED FROM ppar/setup_templates/axys_apx_audit/"
+        "<!-- GENERATED FROM src/perfaud/templates/axys_apx/"
         "demo_extract_availability.yaml. -->",
         "<!-- Run scripts/render_demo_extract_availability.py after editing the YAML. -->",
         "",
@@ -157,7 +163,7 @@ def render_markdown(contract: Mapping[str, Any]) -> str:
         "and/or REP-style report extracts.",
         "",
         "The machine-readable source of truth is "
-        "`ppar/setup_templates/axys_apx_audit/"
+        "`src/perfaud/templates/axys_apx/"
         "demo_extract_availability.yaml`. Tests verify "
         "that the YAML covers every packaged comparison demo CSV header and "
         "that this contract is current.",
@@ -197,7 +203,7 @@ def render_markdown(contract: Mapping[str, Any]) -> str:
             "- `Chapter_10_Performance.md` says `portperf` and `secperf` "
             "should be treated as normalized/local names unless a live IMEX "
             "object, report output, or vendor manual confirms native names.",
-            "- `docs/axys_apx/axys_apx_common_core_export.md` is a starter reference only. "
+            "- `docs/reference/axys_apx/axys_apx_common_core_export.md` is a starter reference only. "
             "It proposes common field aliases but does not override the more "
             "conservative chapter confidence boundaries.",
             "",
@@ -299,7 +305,7 @@ def _extraction_requirements_section(datasets: Mapping[str, Any]) -> list[str]:
         "data condition.",
         "- **Optional**: safe to omit; its absence alone does not prevent Fully Explained.",
         "",
-        "These labels describe extraction needs. They are separate from PPAR's "
+        "These labels describe extraction needs. They are separate from perfaud's "
         "internal validation and evidence-role rules.",
         "",
         "| Dataset | Dataset requirement | Why / likely source | "

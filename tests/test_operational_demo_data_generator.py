@@ -10,7 +10,7 @@ import unittest
 import pandas as pd
 
 # Project Imports
-from ppar.audit import compare_snapshots
+from perfaud.runner import compare_snapshots
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -19,19 +19,17 @@ _GENERATOR_PATH = (
 )
 _SOURCE_PATH = (
     _REPO_ROOT
-    / "ppar"
-    / "setup_templates"
-    / "generic_analytics"
-    / "performance"
-    / "Mega-Cap Alpha Portfolio.csv"
+    / "scripts"
+    / "operational_demo_data"
+    / "seeds"
+    / "portfolio_performance.csv"
 )
 _SECURITY_MASTER_PATH = (
     _REPO_ROOT
-    / "ppar"
-    / "setup_templates"
-    / "generic_analytics"
-    / "classifications"
-    / "Security.csv"
+    / "scripts"
+    / "operational_demo_data"
+    / "seeds"
+    / "security_master.csv"
 )
 
 

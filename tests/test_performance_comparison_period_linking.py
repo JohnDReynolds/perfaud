@@ -8,9 +8,9 @@ import unittest
 import polars as pl
 
 # Project imports
-from ppar.errors import PpaError
-from ppar.audit import schema as pc_cols
-from ppar.audit.period_linking import (
+from perfaud.errors import PerfaudError
+from perfaud import schema as pc_cols
+from perfaud.period_linking import (
     period_context_for_dated_evidence,
     portfolio_periods_from_snapshots,
     security_periods_from_snapshots,
@@ -206,7 +206,7 @@ class TestPerformanceComparisonPeriodLinking(unittest.TestCase):
             }
         )
 
-        with self.assertRaisesRegex(PpaError, "SN-07.*multiple periods"):
+        with self.assertRaisesRegex(PerfaudError, "SN-07.*multiple periods"):
             period_context_for_dated_evidence(
                 row,
                 pc_cols.TRANSACTIONS,
