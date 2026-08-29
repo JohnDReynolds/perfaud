@@ -23,6 +23,9 @@ Regenerate and verify the single marketing image with:
 ./.venv/bin/python scripts/render_readme_images.py --check
 ```
 
+Compatibility CI uses macOS 15 as the canonical raster-rendering platform so the
+byte comparison is independent of Linux font and graphics-library differences.
+
 Build only the direct wheel; there is no sdist or wheel-from-sdist release path:
 
 ```bash
