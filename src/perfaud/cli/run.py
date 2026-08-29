@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from perfaud.cli._help import add_help_argument
 from perfaud.workspace import run
 
 
@@ -12,15 +13,21 @@ def add_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) 
     """Add the run command to the top-level parser."""
     parser = subparsers.add_parser(
         "run",
-        help="Validate and run a workspace.",
-        description="Validate and run a complete perfaud workspace.",
+        help="Run a portfolio performance audit from a directory.",
+        description="Run a portfolio performance audit from a local directory.",
+        epilog="example:\n  perfaud run ./my_perfaud",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        allow_abbrev=False,
+        add_help=False,
     )
+    add_help_argument(parser)
     parser.add_argument(
         "workspace",
+        metavar="DIRECTORY",
         nargs="?",
         type=Path,
         default=Path("."),
-        help="Workspace directory. Defaults exactly to '.'.",
+        help="Local directory containing perfaud.yaml (default: current directory).",
     )
     parser.set_defaults(handler=_handle_run)
 

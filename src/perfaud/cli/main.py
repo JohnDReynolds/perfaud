@@ -7,6 +7,7 @@ from importlib.metadata import version
 import sys
 from typing import Callable, cast
 
+from perfaud.cli._help import add_help_argument
 from perfaud.cli import run as run_command
 from perfaud.cli import setup as setup_command
 from perfaud.errors import PerfaudError
@@ -32,14 +33,38 @@ def _parser() -> argparse.ArgumentParser:
     """Return the complete public command parser."""
     parser = argparse.ArgumentParser(
         prog="perfaud",
-        description="Audit changes in reported portfolio performance.",
+        description=(
+            "Set up and run a portfolio performance audit using files in a local "
+            "directory."
+        ),
+        epilog=(
+            "command forms:\n"
+            "  perfaud setup DIRECTORY\n"
+            "  perfaud run [DIRECTORY]\n\n"
+            "DIRECTORY is a local directory used by both commands:\n"
+            "  setup creates and populates DIRECTORY with the required files.\n"
+            "  run uses the files in DIRECTORY. When DIRECTORY is omitted, run uses the\n"
+            "  current directory.\n\n"
+            "examples:\n"
+            "  perfaud setup ./my_perfaud\n"
+            "  perfaud run ./my_perfaud"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        allow_abbrev=False,
+        add_help=False,
     )
+    add_help_argument(parser)
     parser.add_argument(
         "--version",
         action="version",
         version=f"%(prog)s {version('perfaud')}",
+        help="Show the perfaud version.",
     )
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(
+        dest="command",
+        required=True,
+        title="commands",
+    )
     setup_command.add_parser(subparsers)
     run_command.add_parser(subparsers)
     return parser

@@ -28,8 +28,9 @@ class TestPerfaudCli(unittest.TestCase):
         result = _command("--help")
         self.assertEqual(result.returncode, 0)
         self.assertIn("{setup,run}", result.stdout)
-        for obsolete in ("audit", "analytics", "validate", "--verbose"):
-            self.assertNotIn(obsolete, result.stdout)
+        for obsolete_command in ("audit", "analytics", "validate"):
+            self.assertNotIn(f"\n    {obsolete_command}", result.stdout)
+        self.assertNotIn("--verbose", result.stdout)
 
     def test_version_is_metadata_backed(self) -> None:
         """The command and package report the same installed version."""

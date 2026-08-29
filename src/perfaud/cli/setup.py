@@ -10,6 +10,7 @@ from pathlib import Path
 import shutil
 import tempfile
 
+from perfaud.cli._help import add_help_argument
 from perfaud.config import load_config, settings, validate_config
 from perfaud.errors import PerfaudError
 from perfaud.workspace import CONFIG_FILE_NAME, OUTPUT_DIRECTORY_NAME
@@ -102,10 +103,27 @@ def add_parser(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) 
     """Add the setup command to the top-level parser."""
     parser = subparsers.add_parser(
         "setup",
-        help="Create a complete Axys/APX workspace.",
-        description="Create a complete Axys/APX perfaud workspace.",
+        help=(
+            "Create and populate a directory for running a portfolio performance audit."
+        ),
+        description=(
+            "Create and populate a directory for running a portfolio performance audit."
+        ),
+        epilog="example:\n  perfaud setup ./my_perfaud",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        allow_abbrev=False,
+        add_help=False,
     )
-    parser.add_argument("workspace", type=Path, help="New workspace directory.")
+    add_help_argument(parser)
+    parser.add_argument(
+        "workspace",
+        metavar="DIRECTORY",
+        type=Path,
+        help=(
+            "Local directory to create and populate with configuration, demonstration "
+            "inputs, and an output folder."
+        ),
+    )
     parser.set_defaults(handler=_handle_setup)
 
 
