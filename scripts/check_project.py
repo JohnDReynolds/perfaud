@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import shutil
 import site
 import subprocess
 import sys
@@ -36,6 +37,8 @@ def _venv_command(environment: Path, name: str) -> Path:
 
 def _build_and_check_wheel(directory: Path) -> Path:
     """Build, inspect, and Twine-check exactly one direct universal wheel."""
+    shutil.rmtree(_ROOT / "build", ignore_errors=True)
+    shutil.rmtree(_ROOT / "src" / "perfaud.egg-info", ignore_errors=True)
     _run(
         [
             sys.executable,

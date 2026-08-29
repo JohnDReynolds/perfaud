@@ -42,6 +42,7 @@ class TestPackageMetadata(unittest.TestCase):
         )
         self.assertNotIn("ppar", " ".join(dependencies).lower())
         self.assertEqual(set(project["optional-dependencies"]), {"dev"})
+        self.assertIn("pandas-stubs", project["optional-dependencies"]["dev"])
 
     def test_root_exports_only_run_and_version(self) -> None:
         """Focused APIs stay in their owning modules instead of the root."""
