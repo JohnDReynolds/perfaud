@@ -14,6 +14,19 @@ from scripts import render_readme_images
 class TestRenderReadmeImages(unittest.TestCase):
     """The one-image renderer is bounded and drift-checkable."""
 
+    def test_image_carries_current_source_fingerprint(self) -> None:
+        """The retained image proves which code, inputs, and dependencies made it."""
+        render_readme_images._validate_readme_inventory()
+        render_readme_images._validate_image(
+            Path("docs") / "images" / "PerformanceAuditPortfolio.jpg"
+        )
+
+    def test_check_mode_validates_without_rasterizing(self) -> None:
+        """Portable checks validate provenance without invoking platform rasterizers."""
+        with mock.patch.object(render_readme_images, "_render") as renderer:
+            self.assertEqual(render_readme_images.main(["--check"]), 0)
+        renderer.assert_not_called()
+
     def test_render_png_retries_one_transient_browser_crash(self) -> None:
         """A first browser abort receives one fresh-profile retry."""
         with tempfile.TemporaryDirectory() as directory:

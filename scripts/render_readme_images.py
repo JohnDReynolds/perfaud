@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Sequence
+import hashlib
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -22,6 +24,13 @@ from perfaud.workspace import run
 _ROOT = Path(__file__).resolve().parents[1]
 _IMAGE_NAME = "PerformanceAuditPortfolio.jpg"
 _IMAGE_PATH = _ROOT / "docs" / "images" / _IMAGE_NAME
+_IMAGE_SIZE = (1440, 3380)
+_RAW_URL = (
+    "https://raw.githubusercontent.com/JohnDReynolds/perfaud/"
+    f"main/docs/images/{_IMAGE_NAME}"
+)
+_FINGERPRINT_KEY = "perfaud-source-fingerprint"
+_FINGERPRINT_VERSION = "perfaud-readme-image-v1"
 _CHROME_CANDIDATES = (
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
     "google-chrome",
@@ -48,31 +57,32 @@ _ISSUE_TYPES = {
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Render the image, or return one when ``--check`` detects drift."""
+    """Render the image or verify its source fingerprint and public contract."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--output-dir", type=Path)
     args = parser.parse_args(argv)
 
+    _validate_readme_inventory()
+    if args.check:
+        _validate_image(_IMAGE_PATH)
+        return 0
+
     with tempfile.TemporaryDirectory(prefix="perfaud_readme_image_") as directory:
         temporary = Path(directory)
         candidate = temporary / _IMAGE_NAME
-        _render(candidate, temporary)
+        _render(candidate, temporary, _source_fingerprint())
+        _validate_image(candidate)
         if args.output_dir is not None:
             args.output_dir.mkdir(parents=True, exist_ok=True)
             shutil.copy2(candidate, args.output_dir / _IMAGE_NAME)
-        if args.check:
-            if not _IMAGE_PATH.is_file() or candidate.read_bytes() != _IMAGE_PATH.read_bytes():
-                print(f"{_IMAGE_PATH} is stale; rerun {Path(__file__).as_posix()}.")
-                return 1
-            return 0
         _IMAGE_PATH.parent.mkdir(parents=True, exist_ok=True)
         candidate.replace(_IMAGE_PATH)
         print(f"Wrote {_IMAGE_PATH.relative_to(_ROOT)}")
     return 0
 
 
-def _render(destination: Path, temporary: Path) -> None:
+def _render(destination: Path, temporary: Path, fingerprint: str) -> None:
     """Generate a fresh demo report and render its reviewer-facing preview."""
     workspace = temporary / "workspace"
     setup(workspace)
@@ -89,7 +99,7 @@ def _render(destination: Path, temporary: Path) -> None:
         temporary / "chrome_profile",
         device_scale_factor=1,
     )
-    size = _crop_and_save_jpg(png_path, destination)
+    size = _crop_and_save_jpg(png_path, destination, fingerprint)
     if size[0] < 1200 or size[1] < 1000:
         raise OSError(f"README image is implausibly small: {size[0]}x{size[1]}")
 
@@ -211,13 +221,14 @@ def _render_png(
             shutil.rmtree(profile, ignore_errors=True)
 
 
-def _crop_and_save_jpg(png_path: Path, jpg_path: Path) -> tuple[int, int]:
+def _crop_and_save_jpg(
+    png_path: Path, jpg_path: Path, fingerprint: str
+) -> tuple[int, int]:
     """Crop uniform browser margins and write a deterministic JPEG."""
     image = Image.open(png_path).convert("RGB")
     background = Image.new("RGB", image.size, image.getpixel((0, 0)))
-    mask = ImageChops.difference(image, background).convert("L").point(
-        lambda value: 255 if value > 6 else 0
-    )
+    threshold = [0 if value <= 6 else 255 for value in range(256)]
+    mask = ImageChops.difference(image, background).convert("L").point(threshold)
     bounds = mask.getbbox()
     if bounds is not None:
         padding = 48
@@ -229,8 +240,74 @@ def _crop_and_save_jpg(png_path: Path, jpg_path: Path) -> tuple[int, int]:
                 min(image.height, bounds[3] + padding),
             )
         )
-    image.save(jpg_path, quality=95, optimize=True)
+    image.save(
+        jpg_path,
+        quality=95,
+        optimize=True,
+        comment=f"{_FINGERPRINT_KEY}:{fingerprint}".encode("ascii"),
+    )
     return image.width, image.height
+
+
+def _fingerprint_files() -> Sequence[Path]:
+    """Return every repository input that can affect the marketing image."""
+    files = [
+        _ROOT / "scripts" / "render_readme_images.py",
+        _ROOT / "constraints" / "ci.txt",
+        _ROOT / "pyproject.toml",
+    ]
+    files.extend(
+        path
+        for path in sorted((_ROOT / "src" / "perfaud").rglob("*"))
+        if path.is_file()
+        and (
+            path.suffix in {".csv", ".md", ".py", ".yaml"}
+            or path.name == "py.typed"
+        )
+    )
+    return files
+
+
+def _source_fingerprint() -> str:
+    """Return a stable digest of code, inputs, and pinned rendering dependencies."""
+    digest = hashlib.sha256()
+    digest.update(f"{_FINGERPRINT_VERSION}\0".encode("ascii"))
+    for path in _fingerprint_files():
+        content = path.read_bytes()
+        relative = path.relative_to(_ROOT).as_posix()
+        digest.update(f"{relative}\0{len(content)}\0".encode("utf-8"))
+        digest.update(content)
+    return digest.hexdigest()
+
+
+def _validate_readme_inventory() -> None:
+    """Require one canonical README reference and exactly one retained image."""
+    readme = (_ROOT / "README.md").read_text(encoding="utf-8")
+    references = re.findall(r'https://raw\.githubusercontent\.com/[^"\s]+', readme)
+    if references != [_RAW_URL]:
+        raise RuntimeError("README must reference the canonical perfaud image exactly once.")
+    images = {path.name for path in _IMAGE_PATH.parent.iterdir() if path.is_file()}
+    if images != {_IMAGE_NAME}:
+        raise RuntimeError(f"README image inventory differs: {sorted(images)}")
+
+
+def _validate_image(path: Path) -> None:
+    """Validate image format, dimensions, decodability, and source fingerprint."""
+    if not path.is_file():
+        raise RuntimeError(f"README image is missing: {path}")
+    with Image.open(path) as image:
+        if image.format != "JPEG" or image.size != _IMAGE_SIZE:
+            raise RuntimeError(
+                f"README image has unexpected format or dimensions: {_IMAGE_NAME}"
+            )
+        comment = image.info.get("comment")
+        expected = f"{_FINGERPRINT_KEY}:{_source_fingerprint()}".encode("ascii")
+        if comment != expected:
+            raise RuntimeError(
+                f"README image source fingerprint is stale: {_IMAGE_NAME}; "
+                f"rerun {Path(__file__).as_posix()}"
+            )
+        image.verify()
 
 
 def _find_chrome() -> str:
