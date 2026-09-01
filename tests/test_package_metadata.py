@@ -24,13 +24,42 @@ class TestPackageMetadata(unittest.TestCase):
         """Distribution metadata names only the independent Audit product."""
         project = _pyproject()["project"]
         self.assertEqual(project["name"], "perfaud")
-        self.assertEqual(project["version"], "0.1.0")
+        self.assertEqual(project["version"], "0.1.1")
         self.assertEqual(project["scripts"], {"perfaud": "perfaud.cli:main"})
         self.assertEqual(
             project["urls"]["Repository"],
             "https://github.com/JohnDReynolds/perfaud",
         )
+        self.assertEqual(perfaud.__version__, project["version"])
         self.assertEqual(perfaud.__version__, metadata.version("perfaud"))
+
+    def test_pypi_metadata_marks_the_project_inactive(self) -> None:
+        """PyPI receives the concise retirement notice and historical summary."""
+        project = _pyproject()["project"]
+        self.assertEqual(
+            project["description"],
+            "Audit changes in reported portfolio performance.",
+        )
+        self.assertEqual(
+            project["readme"],
+            {"file": "PYPI_README.md", "content-type": "text/plain"},
+        )
+        self.assertEqual(
+            (_ROOT / "PYPI_README.md").read_text(encoding="utf-8"),
+            "perfaud is no longer supported\n",
+        )
+        self.assertIn(
+            "Development Status :: 7 - Inactive",
+            project["classifiers"],
+        )
+
+    def test_repository_retains_documentation_with_retirement_notice(self) -> None:
+        """The repository remains useful for a possible future resurrection."""
+        readme = (_ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("perfaud is no longer supported", readme)
+        self.assertIn("## Start", readme)
+        self.assertIn("## What it produces", readme)
+        self.assertIn("## Documentation", readme)
 
     def test_runtime_dependencies_are_complete_and_independent(self) -> None:
         """The base install contains the whole workflow without product extras."""

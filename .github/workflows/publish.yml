@@ -30,8 +30,8 @@ jobs:
             build setuptools twine
           python -m build --wheel --no-isolation
           test "$(find dist -maxdepth 1 -name '*.whl' | wc -l)" -eq 1
-          test -f dist/perfaud-0.1.0-py3-none-any.whl
-          python -m twine check dist/perfaud-0.1.0-py3-none-any.whl
+          test -f dist/perfaud-0.1.1-py3-none-any.whl
+          python -m twine check dist/perfaud-0.1.1-py3-none-any.whl
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

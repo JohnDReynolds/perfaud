@@ -4,12 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "perfaud"
-version = "0.1.0"
-description = "Local-first audit software for changes in reported portfolio performance."
+version = "0.1.1"
+description = "Audit changes in reported portfolio performance."
 authors = [{ name = "John Reynolds", email = "jjjkreynolds@gmail.com" }]
-readme = "README.md"
+readme = { file = "PYPI_README.md", content-type = "text/plain" }
 license = "LicenseRef-Proprietary"
 license-files = ["LICENSE"]
+classifiers = [
+    "Development Status :: 7 - Inactive",
+]
 keywords = [
     "portfolio",
     "performance",

@@ -1,5 +1,8 @@
 # perfaud
 
+> **Status:** perfaud is no longer supported. This repository is retained for
+> historical reference and possible future resurrection.
+
 `perfaud` explains why reported Axys/APX portfolio performance changed between
 two snapshots. It produces reviewer-oriented portfolio and security workbooks,
 HTML reports, source detail, and compact supporting evidence.
