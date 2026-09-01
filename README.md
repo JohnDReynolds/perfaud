@@ -7,11 +7,7 @@
 two snapshots. It produces reviewer-oriented portfolio and security workbooks,
 HTML reports, source detail, and compact supporting evidence.
 
-<img
-  src="https://raw.githubusercontent.com/JohnDReynolds/perfaud/main/docs/images/PerformanceAuditPortfolio.jpg"
-  alt="perfaud portfolio review report"
-  width="100%"
->
+<img src="https://raw.githubusercontent.com/JohnDReynolds/perfaud/main/docs/images/PerformanceAuditPortfolio.jpg" alt="perfaud portfolio review report" width="100%">
 
 ## Start
 
